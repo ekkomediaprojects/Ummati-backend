@@ -12,25 +12,24 @@ const router = express.Router();
 router.post('/register', async (req, res) => {
     try {
         const { firstName, lastName, email, password } = req.body;
-
         // Validate input
         if (!firstName || !lastName || !email || !password) {
             return res.status(400).json({ message: 'All fields are required' });
         }
-
         // Check if email already exists
         const existingUser = await User.findOne({ email });
         if (existingUser) {
             return res.status(409).json({ message: 'Email already in use' });
         }
-
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
-
         // Create user
         const user = await User.create({ firstName, lastName, email, password: hashedPassword });
+        // Generate JWT token
+        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
         res.status(201).json({ 
             message: 'User registered successfully', 
+            token, 
             user: { id: user._id, firstName, lastName, email } 
         });
     } catch (error) {
