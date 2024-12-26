@@ -4,7 +4,6 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
 
 // Initialize Express
 const app = express();
@@ -14,12 +13,6 @@ app.use(helmet()); // Adds security headers
 app.use(cors()); // Enables CORS
 app.use(express.json()); // Parses JSON requests
 
-// Rate Limiting
-const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // Limit each IP to 100 requests per windowMs
-});
-app.use(limiter);
 
 // Import Routes
 const userRoutes = require('./routes/users.js');
@@ -30,7 +23,7 @@ app.use('/users', userRoutes);
 app.use('/auth', authRoutes);
 
 // Database Connection
-mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('MongoDB Connected'))
     .catch((error) => console.error('Database connection error:', error));
 
