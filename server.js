@@ -9,7 +9,7 @@ const helmet = require('helmet');
 const app = express();
 
 // Middleware
-app.use(helmet()); // Adds security headers
+//app.use(helmet()); // Adds security headers
 app.use(cors()); // Enables CORS
 app.use(express.json()); // Parses JSON requests
 
@@ -29,7 +29,7 @@ mongoose.connect(process.env.MONGO_URI)
 
 // Default Route
 app.get('/', (req, res) => {
-    res.send('Welcome to the Ummatti Backend!');
+    res.send('WelcOme to the Ummatti Backend!');
 });
 
 // Catch-All Route
