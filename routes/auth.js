@@ -80,6 +80,11 @@ router.post('/forgot-password', async (req, res) => {
     try {
         const { email } = req.body;
 
+        // Check if email is provided
+        if (!email) {
+            return res.status(400).json({ message: 'Email is required' });
+        }
+
         // Find user by email
         const user = await User.findOne({ email });
         if (!user) {
@@ -92,10 +97,15 @@ router.post('/forgot-password', async (req, res) => {
         user.resetPasswordExpire = Date.now() + 3600000; // 1 hour
         await user.save();
 
-        // Send email
+        // Configure transporter
         const transporter = nodemailer.createTransport({
-            service: 'gmail',
-            auth: { user: process.env.EMAIL, pass: process.env.EMAIL_PASSWORD },
+            host: 'smtp.gmail.com',
+            port: 465,
+            secure: true,
+            auth: {
+                user: process.env.EMAIL,
+                pass: process.env.EMAIL_PASS,
+            },
         });
 
         const resetUrl = `${req.protocol}://${req.get('host')}/auth/reset-password/${resetToken}`;
@@ -106,12 +116,15 @@ router.post('/forgot-password', async (req, res) => {
             text: `You requested a password reset. Click the link to reset your password: ${resetUrl}`,
         };
 
+        // Send email
         await transporter.sendMail(mailOptions);
         res.status(200).json({ message: 'Password reset link sent to email' });
     } catch (error) {
+        console.error('Error in forgot-password route:', error);
         res.status(500).json({ message: 'Server error', error: error.message });
     }
 });
+
 
 // **Reset Password**
 router.put('/reset-password/:token', async (req, res) => {
