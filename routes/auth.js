@@ -6,6 +6,7 @@ const User = require('../models/Users'); // Mongoose User model
 const nodemailer = require('nodemailer');
 const { authenticateJWT } = require('../middleware/auth');
 const { upload, uploadToS3 } = require('../middleware/s3'); // Import both upload and uploadToS3
+const { blacklistToken } = require('../middleware/blacklist');
 
 
 
@@ -165,6 +166,7 @@ router.put('/reset-password/:token', async (req, res) => {
 //     }
 // });
 
+//       
 
 // **Upload Image to S3 (No Authentication)**
 router.post('/upload-image', upload.single('image'), uploadToS3, async (req, res) => {
@@ -195,6 +197,37 @@ router.post('/upload-image', upload.single('image'), uploadToS3, async (req, res
     }
 });
 
+// **Upload Profile Picture**
+router.put('/profile-picture', authenticateJWT, upload.single('profilePicture'), uploadToS3, async (req, res) => {
+    try {
+        const { id } = req.user; // Extract user ID from the authenticated JWT
+
+        if (!req.file || !req.file.location) {
+            return res.status(400).json({ message: 'No file uploaded or S3 upload failed' });
+        }
+
+        const profilePictureUrl = req.file.location;
+
+        // Update the user's profile picture
+        const updatedUser = await User.findByIdAndUpdate(
+            id,
+            { profilePicture: profilePictureUrl },
+            { new: true, runValidators: true } // Return updated user, validate changes
+        );
+
+        if (!updatedUser) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        res.status(200).json({
+            message: 'Profile picture updated successfully',
+            profilePicture: updatedUser.profilePicture,
+        });
+    } catch (error) {
+        console.error('Error updating profile picture:', error);
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+});
 
 
 // **Get User Profile**
@@ -212,5 +245,26 @@ router.get('/profile', authenticateJWT, async (req, res) => {
         res.status(500).json({ message: 'Server error', error: error.message });
     }
 });
+
+// Logout route
+router.post('/logout', authenticateJWT, (req, res) => {
+    try {
+        // Extract token from the Authorization header
+        const token = req.header('Authorization')?.split(' ')[1];
+        
+        if (!token) {
+            return res.status(400).json({ message: 'No token provided' });
+        }
+
+        // Blacklist the token
+        blacklistToken(token);
+
+        res.status(200).json({ message: 'Logged out successfully' });
+    } catch (error) {
+        console.error('Logout error:', error);
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+});
+
 
 module.exports = router;

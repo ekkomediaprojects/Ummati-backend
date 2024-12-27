@@ -8,6 +8,11 @@ const usersSchema = new mongoose.Schema({
     profilePicture: { type: String, default: null },
     instagram: { type: String, default: null },
     linkedin: { type: String, default: null },
+    streetAddress: { type: String, default: null },
+    city: { type: String, default: null },
+    state: { type: String, default: null },
+    postalCode: { type: String, default: null },
+    phoneNumber: { type: String, default: null },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now },
 });
