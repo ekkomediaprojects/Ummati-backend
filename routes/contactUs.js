@@ -81,7 +81,7 @@ router.post('/formSubmit', async (req, res) => {
         console.log('Sending acknowledgment email to user...');
         await transporter.sendMail(userMailOptions);
 
-        res.status(201).json({ message: 'Your message has been submitted successfully, and a confirmation email has been sent!' });
+        res.status(201).json({ message: 'Your message has been submitted successfully!' });
     } catch (error) {
         console.error('Error submitting contact form:', error);
         res.status(500).json({ error: 'Something went wrong. Please try again later.' });

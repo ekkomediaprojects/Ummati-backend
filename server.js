@@ -18,11 +18,13 @@ app.use(express.json()); // Parses JSON requests
 const userRoutes = require('./routes/users.js');
 const authRoutes = require('./routes/auth.js');
 const contactUs = require('./routes/contactUs.js');
+const emailSubscribers = require('./routes/emailSubscribers.js');
 
 // Use Routes
 app.use('/users', userRoutes);
 app.use('/auth', authRoutes);
 app.use('/contactUs', contactUs);
+app.use('/emailSubscribers', emailSubscribers);
 
 // Database Connection
 mongoose.connect(process.env.MONGO_URI)
