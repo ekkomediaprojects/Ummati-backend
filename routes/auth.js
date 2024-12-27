@@ -162,31 +162,43 @@ router.put('/reset-password/:token', async (req, res) => {
 });
 
 // **Update Profile**
-// router.put('/profile', authenticateJWT, upload.single('profileImage'), async (req, res) => { 
-//     try {
-//         const { id } = req.user; // Extract user ID from token
-//         const { firstName, lastName, email } = req.body; 
-//         const imageUrl = req.file ? `https://your-bucket-name.s3.amazonaws.com/${req.file.key}` : null; 
+router.put('/update-profile', authenticateJWT, async (req, res) => {
+    try {
+        const { firstName, lastName, instagram, linkedin, streetAddress, city, state, postalCode, phoneNumber } = req.body;
+        const { id } = req.user; // Extract user ID from JWT
 
-//         const updatedUser = await User.findByIdAndUpdate(
-//             id,
-//             { firstName, lastName, email, profileImageUrl: imageUrl },
-//             { new: true, runValidators: true }
-//         );
+        // Build the update object dynamically
+        const updateFields = {};
+        if (firstName) updateFields.firstName = firstName;
+        if (lastName) updateFields.lastName = lastName;
+        if (instagram) updateFields.instagram = instagram;
+        if (linkedin) updateFields.linkedin = linkedin;
+        if (streetAddress) updateFields.streetAddress = streetAddress;
+        if (city) updateFields.city = city;
+        if (state) updateFields.state = state;
+        if (postalCode) updateFields.postalCode = postalCode;
+        if (phoneNumber) updateFields.phoneNumber = phoneNumber;
 
-//         if (!updatedUser) {
-//             return res.status(404).json({ message: 'User not found' });
-//         }
+        // Update the user in the database
+        const updatedUser = await User.findByIdAndUpdate(
+            id,
+            { $set: updateFields },
+            { new: true, runValidators: true } // Return updated user and validate the changes
+        );
 
-//         res.status(200).json({ 
-//             message: 'Profile updated successfully', 
-//             user: updatedUser 
-//         });
-//     } catch (error) {
-//         console.error(error);
-//         res.status(500).json({ message: 'Server error', error: error.message });
-//     }
-// });
+        if (!updatedUser) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        res.status(200).json({
+            message: 'Profile updated successfully',
+            user: updatedUser,
+        });
+    } catch (error) {
+        console.error('Error updating profile:', error);
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+});
 
 //       
 
