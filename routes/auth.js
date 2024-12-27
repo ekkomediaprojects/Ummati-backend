@@ -65,15 +65,24 @@ router.post('/login', async (req, res) => {
 
         // Generate JWT
         const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+        // Include profile picture in the response
         res.status(200).json({ 
             message: 'Login successful', 
             token, 
-            user: { id: user._id, firstName: user.firstName, lastName: user.lastName, email: user.email } 
+            user: { 
+                id: user._id, 
+                firstName: user.firstName, 
+                lastName: user.lastName, 
+                email: user.email, 
+                profilePicture: user.profilePicture || null // Include profile picture
+            } 
         });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
     }
 });
+
 
 // **Forgot Password**
 router.post('/forgot-password', async (req, res) => {
