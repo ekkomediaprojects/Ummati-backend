@@ -1,81 +1,106 @@
+require('dotenv').config(); // Load environment variables
 const express = require('express');
-const User = require('../models/Users');
-
+const nodemailer = require('nodemailer');
+const ContactUs = require('../models/ContactUs'); // Import your ContactUs model
 const router = express.Router();
 
-// Get all users
-router.get('/', async (req, res) => {
+const transporter = nodemailer.createTransport({
+    service: 'Gmail',
+    auth: {
+        user: process.env.EMAIL,
+        pass: process.env.EMAIL_PASS,
+    },
+    logger: true,
+    debug: true,
+});
+
+// POST route to handle Contact Us form submission
+router.post('/formSubmit', async (req, res) => {
     try {
-        const users = await User.find();
-        res.status(200).json(users);
+        console.log('Received request at /formSubmit');
+        console.log('Request body:', req.body);
+
+        const { firstName, lastName, email, topic, message } = req.body;
+
+        if (!firstName || !lastName || !email || !topic || !message) {
+            return res.status(400).json({ error: 'All fields are required.' });
+        }
+
+        // Store submission in database
+        const newSubmission = new ContactUs({
+            firstName,
+            lastName,
+            email,
+            topic,
+            message,
+        });
+
+        const savedSubmission = await newSubmission.save();
+        console.log('Form submission saved to database:', savedSubmission);
+
+        // Email to Business Email
+        const businessMailOptions = {
+            from: process.env.EMAIL,
+            to: 'team@ummaticommunity.com',
+            subject: 'New Contact Us Form Submission',
+            text: `
+                New Contact Us Form Submission:
+
+                Name: ${firstName} ${lastName}
+                Email: ${email}
+                Topic: ${topic}
+                Message: ${message}
+            `,
+        };
+
+        // Email to User (Acknowledgment)
+        const userMailOptions = {
+            from: process.env.EMAIL,
+            to: email,
+            subject: 'We Received Your Message',
+            text: `
+                Hi ${firstName},
+
+                Thank you for reaching out to us regarding "${topic}". We have received your message and will get back to you as soon as possible.
+
+                Here's a copy of your submission:
+                Name: ${firstName} ${lastName}
+                Email: ${email}
+                Topic: ${topic}
+                Message: ${message}
+
+                Best regards,
+                Ummati Community Team
+            `,
+        };
+
+        // Send both emails
+        console.log('Sending email to business email...');
+        await transporter.sendMail(businessMailOptions);
+
+        console.log('Sending acknowledgment email to user...');
+        await transporter.sendMail(userMailOptions);
+
+        res.status(201).json({ message: 'Your message has been submitted successfully, and a confirmation email has been sent!' });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error('Error submitting contact form:', error);
+        res.status(500).json({ error: 'Something went wrong. Please try again later.' });
     }
 });
 
-// Get a user by ID
-router.get('/:id', async (req, res) => {
+// GET route to retrieve all Contact Us submissions
+router.get('/allContactUs', async (req, res) => {
     try {
-        const user = await User.findById(req.params.id);
-        if (!user) {
-            return res.status(404).json({ error: 'User not found' });
-        }
-        res.status(200).json(user);
+        console.log('Received request at /allContactUs');
+
+        // Fetch all submissions from the database
+        const submissions = await ContactUs.find().sort({ submittedAt: -1 }); // Sort by latest first
+        console.log('Fetched submissions:', submissions);
+
+        res.status(200).json(submissions);
     } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Create a new user
-router.post('/', async (req, res) => {
-    try {
-        const { name, email, password, profilePicture, instagram, linkedin } = req.body;
-
-        if (!name || !email || !password) {
-            return res.status(400).json({ error: 'Name, email, and password are required.' });
-        }
-
-        const newUser = new User({ name, email, password, profilePicture, instagram, linkedin });
-        await newUser.save();
-
-        res.status(201).json(newUser);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Update a user
-router.put('/:id', async (req, res) => {
-    try {
-        const { name, email, password, profilePicture, instagram, linkedin } = req.body;
-
-        const updatedUser = await User.findByIdAndUpdate(
-            req.params.id,
-            { name, email, password, profilePicture, instagram, linkedin, updatedAt: Date.now() },
-            { new: true }
-        );
-
-        if (!updatedUser) {
-            return res.status(404).json({ error: 'User not found' });
-        }
-
-        res.status(200).json(updatedUser);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Delete a user
-router.delete('/:id', async (req, res) => {
-    try {
-        const deletedUser = await User.findByIdAndDelete(req.params.id);
-        if (!deletedUser) {
-            return res.status(404).json({ error: 'User not found' });
-        }
-
-        res.status(200).json({ message: 'User deleted successfully.' });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error('Error fetching Contact Us submissions:', error);
+        res.status(500).json({ error: 'Something went wrong. Please try again later.' });
     }
 });
 

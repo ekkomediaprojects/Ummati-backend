@@ -5,6 +5,9 @@ const crypto = require('crypto');
 const User = require('../models/Users'); // Mongoose User model
 const nodemailer = require('nodemailer');
 const { authenticateJWT } = require('../middleware/auth');
+const { upload, uploadToS3 } = require('../middleware/s3'); // Import both upload and uploadToS3
+
+
 
 const router = express.Router();
 
@@ -136,26 +139,63 @@ router.put('/reset-password/:token', async (req, res) => {
 });
 
 // **Update Profile**
-router.put('/profile', authenticateJWT, async (req, res) => {
+// router.put('/profile', authenticateJWT, upload.single('profileImage'), async (req, res) => { 
+//     try {
+//         const { id } = req.user; // Extract user ID from token
+//         const { firstName, lastName, email } = req.body; 
+//         const imageUrl = req.file ? `https://your-bucket-name.s3.amazonaws.com/${req.file.key}` : null; 
+
+//         const updatedUser = await User.findByIdAndUpdate(
+//             id,
+//             { firstName, lastName, email, profileImageUrl: imageUrl },
+//             { new: true, runValidators: true }
+//         );
+
+//         if (!updatedUser) {
+//             return res.status(404).json({ message: 'User not found' });
+//         }
+
+//         res.status(200).json({ 
+//             message: 'Profile updated successfully', 
+//             user: updatedUser 
+//         });
+//     } catch (error) {
+//         console.error(error);
+//         res.status(500).json({ message: 'Server error', error: error.message });
+//     }
+// });
+
+
+// **Upload Image to S3 (No Authentication)**
+router.post('/upload-image', upload.single('image'), uploadToS3, async (req, res) => {
     try {
-        const { id } = req.user; // Extract user ID from token
-        const { firstName, lastName, email } = req.body;
+        console.log('Request received for /upload-image');
 
-        const updatedUser = await User.findByIdAndUpdate(
-            id,
-            { firstName, lastName, email, updatedAt: Date.now() },
-            { new: true, runValidators: true }
-        );
-
-        if (!updatedUser) {
-            return res.status(404).json({ message: 'User not found' });
+        if (!req.file) {
+            console.error('No file uploaded');
+            return res.status(400).json({ message: 'No file uploaded' });
         }
 
-        res.status(200).json({ message: 'Profile updated successfully', user: updatedUser });
+        console.log('File uploaded to server memory:', {
+            originalname: req.file.originalname,
+            mimetype: req.file.mimetype,
+            size: req.file.size,
+        });
+
+        console.log('File location (set by S3 middleware):', req.file.location);
+
+        // Return the file URL and success message
+        res.status(200).json({
+            message: 'Image uploaded successfully',
+            fileUrl: req.file.location, // S3 URL for the uploaded file
+        });
     } catch (error) {
-        res.status(500).json({ message: 'Server error', error: error.message });
+        console.error('Error in /upload-image route:', error);
+        res.status(500).json({ message: 'Failed to upload image', error: error.message });
     }
 });
+
+
 
 // **Get User Profile**
 router.get('/profile', authenticateJWT, async (req, res) => {
