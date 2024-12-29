@@ -1,18 +1,8 @@
 require('dotenv').config(); // Load environment variables
 const express = require('express');
-const nodemailer = require('nodemailer');
+const transporter = require('../middleware/nodemailer');
 const ContactUs = require('../models/ContactUs'); // Import your ContactUs model
 const router = express.Router();
-
-const transporter = nodemailer.createTransport({
-    service: 'Gmail',
-    auth: {
-        user: process.env.EMAIL,
-        pass: process.env.EMAIL_PASS,
-    },
-    logger: true,
-    debug: true,
-});
 
 // POST route to handle Contact Us form submission
 router.post('/formSubmit', async (req, res) => {
