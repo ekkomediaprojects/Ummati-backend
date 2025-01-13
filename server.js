@@ -19,12 +19,14 @@ const userRoutes = require('./routes/users.js');
 const authRoutes = require('./routes/auth.js');
 const contactUs = require('./routes/contactUs.js');
 const emailSubscribers = require('./routes/emailSubscribers.js');
+const eventbrite = require('./routes/eventbrite.js');
 
 // Use Routes
 app.use('/users', userRoutes);
 app.use('/auth', authRoutes);
 app.use('/contactUs', contactUs);
 app.use('/emailSubscribers', emailSubscribers);
+app.use('/eventbrite', eventbrite);
 
 // Database Connection
 mongoose.connect(process.env.MONGO_URI)
