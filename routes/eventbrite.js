@@ -1,5 +1,5 @@
 const axios = require('axios');
-const Event = require('../models/events');
+const Event = require('../models/Events');
 const express = require('express');
 const router = express.Router();
 
