@@ -2,6 +2,7 @@ const axios = require('axios');
 const Event = require('../models/Events');
 const express = require('express');
 const router = express.Router();
+require('dotenv').config();
 
 router.get('/test', (req, res) => {
     console.log('Test route hit');
