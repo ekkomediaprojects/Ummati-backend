@@ -6,20 +6,19 @@ require('dotenv').config();
 
 router.get('/test', (req, res) => {
     console.log('Test route hit');
-    s = (process.env.EVENTBRITE_API_KEY);
+    s = (process.env.EVENTBRITE_ACCESS_TOKEN);
     res.status(200).send(s);
     console.log(process.env.EVENTBRITE_API_KEY);
 });
 
 // Webhook endpoint
 router.post('/webhook/eventbrite', async (req, res) => {
-    const eventbriteEvent = req.headers['x-eventbrite-event']; // Identify the Eventbrite event type
+    const eventbriteEvent = req.headers['x-eventbrite-event'];
     console.log('Webhook received:', {
         headers: req.headers,
         body: req.body,
     });
 
-    // Log the received Eventbrite event type
     if (eventbriteEvent === 'test') {
         console.log('Test webhook received');
         return res.status(200).send('Test webhook processed');
@@ -27,7 +26,6 @@ router.post('/webhook/eventbrite', async (req, res) => {
 
     const { api_url } = req.body;
 
-    // Validate the incoming payload
     if (!api_url) {
         console.error('Missing api_url in webhook payload:', req.body);
         return res.status(400).json({ message: 'Missing api_url in payload' });
@@ -39,11 +37,18 @@ router.post('/webhook/eventbrite', async (req, res) => {
     }
 
     try {
-        // Fetch event details from Eventbrite API
         console.log('Fetching event data from Eventbrite API:', api_url);
+
+        // Use the token from the environment variable
+        const token = process.env.EVENTBRITE_ACCESS_TOKEN;
+        if (!token) {
+            console.error('No API key found in environment variables');
+            return res.status(500).send('Server misconfiguration: missing API key');
+        }
+
         const response = await axios.get(api_url, {
             headers: {
-                Authorization: `Bearer ${process.env.EVENTBRITE_ACCESS_TOKEN}`,
+                Authorization: `Bearer ${token}`,
             },
         });
 
@@ -51,7 +56,6 @@ router.post('/webhook/eventbrite', async (req, res) => {
         console.log('Event data fetched successfully:', event);
 
         // Check if event already exists in the database
-        console.log(`Checking if event with ID ${event.id} exists in the database.`);
         const existingEvent = await Event.findOne({ eventId: event.id });
         if (existingEvent) {
             console.log(`Event with ID ${event.id} already exists. Skipping creation.`);
@@ -59,7 +63,6 @@ router.post('/webhook/eventbrite', async (req, res) => {
         }
 
         // Save the event to MongoDB
-        console.log(`Saving event with ID ${event.id} to the database.`);
         await Event.create({
             eventId: event.id,
             name: event.name.text || 'Unnamed Event',
@@ -73,19 +76,18 @@ router.post('/webhook/eventbrite', async (req, res) => {
         console.log(`Event with ID ${event.id} saved successfully.`);
         res.status(200).send('Webhook processed');
     } catch (error) {
-        // Log error details
         console.error('Error processing webhook:', {
             message: error.message,
             stack: error.stack,
             response: error.response ? {
                 status: error.response.status,
                 data: error.response.data,
-                headers: error.response.headers,
             } : 'No response received',
         });
 
         res.status(500).send('Error processing webhook');
     }
 });
+
 
 module.exports = router;
