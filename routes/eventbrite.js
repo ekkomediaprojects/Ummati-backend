@@ -43,7 +43,7 @@ router.post('/webhook/eventbrite', async (req, res) => {
         console.log('Fetching event data from Eventbrite API:', api_url);
         const response = await axios.get(api_url, {
             headers: {
-                Authorization: `Bearer ${process.env.EVENTBRITE_API_KEY}`,
+                Authorization: `Bearer ${process.env.EVENTBRITE_ACCESS_TOKEN}`,
             },
         });
 
