@@ -48,7 +48,7 @@ router.post('/webhook/eventbrite', async (req, res) => {
 
         const response = await axios.get(api_url, {
             headers: {
-                Authorization: 'Bearer CILVALP4QI5JPE53IFTT',
+                Authorization: `Bearer CILVALP4QI5JPE53IFTT`,
             }
         });
 
