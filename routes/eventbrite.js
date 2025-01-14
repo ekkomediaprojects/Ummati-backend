@@ -6,7 +6,9 @@ require('dotenv').config();
 
 router.get('/test', (req, res) => {
     console.log('Test route hit');
-    res.status(200).send('Test route is working!');
+    s = (process.env.EVENTBRITE_API_KEY);
+    res.status(200).send(s);
+    console.log(process.env.EVENTBRITE_API_KEY);
 });
 
 // Webhook endpoint
