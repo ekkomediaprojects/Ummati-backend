@@ -4,14 +4,78 @@ const express = require('express');
 const router = express.Router();
 require('dotenv').config();
 
-router.get('/test', (req, res) => {
-    console.log('Test route hit');
-    s = (process.env.EVENTBRITE_ACCESS_TOKEN);
-    res.status(200).send(s);
-    console.log(process.env.EVENTBRITE_API_KEY);
+/**
+ * Authorization URL endpoint to start the OAuth flow.
+ * Redirects users to Eventbrite's authorization page.
+ */
+router.get('/oauth/authorize', (req, res) => {
+    const redirectUri = encodeURIComponent('https://api.ummaticommunity.com/oauth/callback');
+    const authorizationUrl = `https://www.eventbrite.com/oauth/authorize?response_type=code&client_id=${process.env.EVENTBRITE_API_KEY}&redirect_uri=${redirectUri}`;
+    res.redirect(authorizationUrl);
 });
 
-// Webhook endpoint
+/**
+ * OAuth callback endpoint to exchange the authorization code for an access token.
+ */
+router.get('/oauth/callback', async (req, res) => {
+    const authorizationCode = req.query.code;
+
+    if (!authorizationCode) {
+        console.error('Authorization code not provided');
+        return res.status(400).send('Authorization code missing');
+    }
+
+    try {
+        const tokenResponse = await axios.post('https://www.eventbrite.com/oauth/token', null, {
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            params: {
+                grant_type: 'authorization_code',
+                client_id: process.env.EVENTBRITE_API_KEY,
+                client_secret: process.env.EVENTBRITE_CLIENT_SECRET,
+                code: authorizationCode,
+                redirect_uri: 'https://api.ummaticommunity.com/oauth/callback',
+            },
+        });
+
+        const { access_token } = tokenResponse.data;
+        console.log('Access token received:', access_token);
+
+        // Save the access token securely (e.g., to your database or environment variables)
+        res.status(200).send('Authorization successful');
+    } catch (error) {
+        console.error('Error exchanging authorization code:', error.message);
+        res.status(500).send('Error exchanging authorization code');
+    }
+});
+
+/**
+ * Test endpoint to verify the Eventbrite access token.
+ */
+router.get('/test', async (req, res) => {
+    try {
+        const token = process.env.EVENTBRITE_ACCESS_TOKEN;
+        if (!token) {
+            throw new Error('Access token not configured in environment variables');
+        }
+
+        const response = await axios.get('https://www.eventbriteapi.com/v3/users/me/', {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        });
+
+        res.status(200).json(response.data);
+    } catch (error) {
+        console.error('Error testing access token:', error.message);
+        res.status(500).send('Error testing access token');
+    }
+});
+
+/**
+ * Webhook endpoint to process Eventbrite events.
+ */
 router.post('/webhook/eventbrite', async (req, res) => {
     const eventbriteEvent = req.headers['x-eventbrite-event'];
     console.log('Webhook received:', {
@@ -39,17 +103,15 @@ router.post('/webhook/eventbrite', async (req, res) => {
     try {
         console.log('Fetching event data from Eventbrite API:', api_url);
 
-        // Use the token from the environment variable
         const token = process.env.EVENTBRITE_ACCESS_TOKEN;
         if (!token) {
-            console.error('No API key found in environment variables');
-            return res.status(500).send('Server misconfiguration: missing API key');
+            throw new Error('Access token not configured in environment variables');
         }
 
         const response = await axios.get(api_url, {
             headers: {
-                Authorization: `Bearer CILVALP4QI5JPE53IFTT`,
-            }
+                Authorization: `Bearer ${token}`,
+            },
         });
 
         const event = response.data;
@@ -88,6 +150,5 @@ router.post('/webhook/eventbrite', async (req, res) => {
         res.status(500).send('Error processing webhook');
     }
 });
-
 
 module.exports = router;
