@@ -16,7 +16,7 @@ const ContactUsSchema = new mongoose.Schema({
     topic: { 
         type: String, 
         required: true,
-        enum: ['Business Partnerships', 'Sponsorship', 'Join the Team', 'Start a Chapter', 'Other']
+        enum: ['Business Partnerships', `Collaborations`, 'Sponsorship', 'Join the Team', 'Start a Chapter', 'Other']
     },
     message: { type: String, required: true },
     submittedAt: { type: Date, default: Date.now },

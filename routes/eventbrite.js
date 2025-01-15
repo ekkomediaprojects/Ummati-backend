@@ -205,6 +205,7 @@ router.get('/api/events', async (req, res) => {
 router.post('/api/addevents', async (req, res) => {
     const token = process.env.EVENTBRITE_ACCESS_TOKEN;
     const organizationId = process.env.EVENTBRITE_ORGANIZATION_ID;
+    const url = `https://www.eventbriteapi.com/v3/organizations/${organizationId}/events/?expand=venue`;
 
     if (!token) {
         console.error('[DEBUG] No access token found in environment variables.');
@@ -213,24 +214,39 @@ router.post('/api/addevents', async (req, res) => {
         });
     }
 
-    console.log('[DEBUG] Access token found. Preparing to fetch events.');
-
-    const url = `https://www.eventbriteapi.com/v3/organizations/${organizationId}/events/?expand=venue`;
+    let allEvents = [];
+    let hasMoreItems = true;
+    let continuation = null;
 
     try {
-        console.log('[DEBUG] Making GET request to Eventbrite API with URL:', url);
+        // Fetch all events with pagination
+        while (hasMoreItems) {
+            console.log('[DEBUG] Making GET request to Eventbrite API with URL:', url);
 
-        const response = await axios.get(url, {
-            headers: {
-                Authorization: `Bearer ${token}`,
-            },
-        });
+            const response = await axios.get(url, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+                params: continuation ? { continuation } : {},
+            });
 
-        const events = response.data.events;
+            const { events, pagination } = response.data;
 
-        console.log(`[DEBUG] Fetched ${events.length} events.`);
+            if (events && events.length > 0) {
+                allEvents = allEvents.concat(events);
+            }
 
-        for (const event of events) {
+            // Update pagination info
+            hasMoreItems = pagination.has_more_items;
+            continuation = pagination.continuation;
+
+            console.log(`[DEBUG] Fetched ${events.length} events. Total so far: ${allEvents.length}`);
+        }
+
+        console.log('[DEBUG] All events fetched successfully:', allEvents.length);
+
+        // Save events to the database
+        for (const event of allEvents) {
             const existingEvent = await Event.findOne({ eventId: event.id });
 
             if (existingEvent) {
@@ -238,8 +254,8 @@ router.post('/api/addevents', async (req, res) => {
                 continue;
             }
 
-            const venue = event.venue || {}; // Fallback to empty object if venue is undefined
-            const address = venue.address || {}; // Fallback to empty object if address is undefined
+            const venue = event.venue || {};
+            const address = venue.address || {};
 
             await Event.create({
                 eventId: event.id,
@@ -261,11 +277,9 @@ router.post('/api/addevents', async (req, res) => {
             console.log(`[DEBUG] Event with ID ${event.id} saved successfully.`);
         }
 
-        res.status(200).send('Events saved successfully.');
+        res.status(200).send('All events saved to the database successfully.');
     } catch (error) {
         console.error('[DEBUG] Error occurred while fetching events.');
-        console.error('[DEBUG] Error Message:', error.message);
-
         if (error.response) {
             console.error('[DEBUG] Error Response Status:', error.response.status);
             console.error('[DEBUG] Error Response Data:', error.response.data);
@@ -274,11 +288,14 @@ router.post('/api/addevents', async (req, res) => {
         }
 
         res.status(error.response ? error.response.status : 500).send({
-            message: 'Error fetching events',
+            message: 'Error fetching and saving events',
             details: error.response ? error.response.data : error.message,
         });
     }
 });
+
+
+
 
 
 
