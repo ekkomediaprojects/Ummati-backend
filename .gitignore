@@ -5,3 +5,4 @@ testCORS.js
 testImage.jpeg
 
 .env
+.DS_Store
