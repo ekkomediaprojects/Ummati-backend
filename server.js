@@ -12,8 +12,6 @@ const app = express();
 // Middleware
 //app.use(helmet()); // Adds security headers
 app.use(cors()); // Enables CORS
-app.use(express.json()); // Parses JSON requests
-
 
 // Import Routes
 const userRoutes = require('./routes/users.js');
@@ -25,13 +23,14 @@ const events = require('./routes/events.js');
 const stripeRoutes = require('./routes/stripe.js');
 
 // Use Routes
+app.use('/stripe', stripeRoutes); // Stripe routes first (needs raw body)
+app.use(express.json()); // JSON parsing for other routes
 app.use('/users', userRoutes);
 app.use('/auth', authRoutes);
 app.use('/contactUs', contactUs);
 app.use('/emailSubscribers', emailSubscribers);
 app.use('/eventbrite', eventbrite);
 app.use('/events', events);
-app.use('/stripe', stripeRoutes);
 
 // Database Connection
 mongoose.connect(process.env.MONGO_URI)

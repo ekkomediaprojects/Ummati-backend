@@ -339,7 +339,7 @@ router.post('/refund', authenticateJWT, async (req, res) => {
     }
 });
 
-// Webhook handler for Stripe events
+// Webhook handler for Stripe events - MUST be the first route
 router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
     const sig = req.headers['stripe-signature'];
     let event;
