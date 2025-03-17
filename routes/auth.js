@@ -3,12 +3,12 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const User = require('../models/Users'); // Mongoose User model
+const Membership = require('../models/Membersip');
+const MembershipTier = require('../models/MembershipTier');
 const nodemailer = require('nodemailer');
 const { authenticateJWT } = require('../middleware/auth');
 const { upload, uploadToS3 } = require('../middleware/s3'); // Import both upload and uploadToS3
 const { blacklistToken } = require('../middleware/blacklist');
-
-
 
 const router = express.Router();
 
@@ -29,6 +29,25 @@ router.post('/register', async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10);
         // Create user
         const user = await User.create({ firstName, lastName, email, password: hashedPassword });
+
+        // Get the free membership tier
+        const freeTier = await MembershipTier.findOne({ price: 0 });
+        if (!freeTier) {
+            console.error('Free membership tier not found');
+            return res.status(500).json({ message: 'Error creating free membership' });
+        }
+
+        // Create free membership for the user
+        const membership = new Membership({
+            userId: user._id,
+            membershipTierId: freeTier._id,
+            status: 'Active',
+            currentPeriodStart: new Date(),
+            currentPeriodEnd: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year from now
+        });
+
+        await membership.save();
+
         // Generate JWT token
         const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
         res.status(201).json({ 
@@ -37,6 +56,7 @@ router.post('/register', async (req, res) => {
             user: { id: user._id, firstName, lastName, email } 
         });
     } catch (error) {
+        console.error('Registration error:', error);
         res.status(500).json({ message: 'Server error', error: error.message });
     }
 });

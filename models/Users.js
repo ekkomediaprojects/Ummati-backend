@@ -13,6 +13,7 @@ const usersSchema = new mongoose.Schema({
     state: { type: String, default: null },
     postalCode: { type: String, default: null },
     phoneNumber: { type: String, default: null },
+    stripeCustomerId: { type: String, unique: true, sparse: true }, // Stripe Customer ID
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now },
 });

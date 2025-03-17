@@ -4,6 +4,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 //const helmet = require('helmet');
+const { initializeStripeServices } = require('./services/stripeMembershipService');
 
 // Initialize Express
 const app = express();
@@ -21,6 +22,7 @@ const contactUs = require('./routes/contactUs.js');
 const emailSubscribers = require('./routes/emailSubscribers.js');
 const eventbrite = require('./routes/eventbrite.js');
 const events = require('./routes/events.js');
+const stripeRoutes = require('./routes/stripe.js');
 
 // Use Routes
 app.use('/users', userRoutes);
@@ -29,15 +31,20 @@ app.use('/contactUs', contactUs);
 app.use('/emailSubscribers', emailSubscribers);
 app.use('/eventbrite', eventbrite);
 app.use('/events', events);
+app.use('/stripe', stripeRoutes);
 
 // Database Connection
 mongoose.connect(process.env.MONGO_URI)
-    .then(() => console.log('MongoDB Connected'))
+    .then(async () => {
+        console.log('MongoDB Connected');
+        // Initialize Stripe services
+        await initializeStripeServices();
+    })
     .catch((error) => console.error('Database connection error:', error));
 
 // Default Route
 app.get('/', (req, res) => {
-    res.send('WelcOme to the Ummatti Backend!');
+    res.send('Welcome to the Ummati Backend!');
 });
 
 // Catch-All Route
