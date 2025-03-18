@@ -4,6 +4,7 @@ const QRScan = require('../models/QRScan');
 const User = require('../models/Users');
 const Membership = require('../models/Membersip');
 const MembershipTier = require('../models/MembershipTier');
+const qrcode = require('qrcode');
 
 // Generate a unique QR code
 const generateQRCode = async (userId) => {
@@ -11,22 +12,38 @@ const generateQRCode = async (userId) => {
         // Generate a unique code
         const code = crypto.randomBytes(32).toString('hex');
         
-        // Set expiration to 10 minutes from now
+        // Set expiration time to 10 minutes from now
         const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
         
-        // Create display URL - using the API domain directly
+        // Create the display URL
         const displayUrl = `${process.env.FRONTEND_URL}/qr/verify/${code}`;
         
-        // Create new QR code
+        // Generate QR code as data URL
+        const qrCodeDataUrl = await qrcode.toDataURL(displayUrl, {
+            errorCorrectionLevel: 'H',
+            margin: 1,
+            width: 300,
+            color: {
+                dark: '#000000',
+                light: '#ffffff'
+            }
+        });
+
+        // Save QR code details
         const qrCode = new QRCode({
             userId,
             code,
             displayUrl,
             expiresAt
         });
-        
         await qrCode.save();
-        return qrCode;
+
+        return {
+            code,
+            displayUrl,
+            qrCodeImage: qrCodeDataUrl,
+            expiresAt
+        };
     } catch (error) {
         console.error('Error generating QR code:', error);
         throw error;
