@@ -5,6 +5,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 //const helmet = require('helmet');
 const { initializeStripeServices } = require('./services/stripeMembershipService');
+const { cleanupExpiredQRCodes } = require('./services/qrCodeService');
 
 // Initialize Express
 const app = express();
@@ -21,6 +22,7 @@ const emailSubscribers = require('./routes/emailSubscribers.js');
 const eventbrite = require('./routes/eventbrite.js');
 const events = require('./routes/events.js');
 const stripeRoutes = require('./routes/stripe.js');
+const qrCodeRoutes = require('./routes/qrCode');
 
 // Use Routes
 app.use('/stripe', stripeRoutes); // Stripe routes first (needs raw body)
@@ -31,6 +33,7 @@ app.use('/contactUs', contactUs);
 app.use('/emailSubscribers', emailSubscribers);
 app.use('/eventbrite', eventbrite);
 app.use('/events', events);
+app.use('/qr', qrCodeRoutes);
 
 // Database Connection
 mongoose.connect(process.env.MONGO_URI)
@@ -38,6 +41,16 @@ mongoose.connect(process.env.MONGO_URI)
         console.log('MongoDB Connected');
         // Initialize Stripe services
         await initializeStripeServices();
+        
+        // Set up cleanup job for expired QR codes (runs every 5 minutes)
+        setInterval(async () => {
+            try {
+                const cleanedCount = await cleanupExpiredQRCodes();
+                console.log(`Cleaned up ${cleanedCount} expired QR codes`);
+            } catch (error) {
+                console.error('Error cleaning up expired QR codes:', error);
+            }
+        }, 5 * 60 * 1000); // 5 minutes
     })
     .catch((error) => console.error('Database connection error:', error));
 
