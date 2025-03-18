@@ -44,6 +44,18 @@ router.get('/verify/:code', async function(req, res) {
                         .loading { display: none; }
                         .error { color: red; display: none; }
                         .success { color: green; display: none; }
+                        .member-details { 
+                            max-width: 400px; 
+                            margin: 20px auto; 
+                            padding: 20px; 
+                            border: 1px solid #ddd; 
+                            border-radius: 8px;
+                            display: none;
+                        }
+                        .member-name { font-size: 24px; margin-bottom: 10px; }
+                        .membership-tier { color: #666; margin-bottom: 15px; }
+                        .benefits { text-align: left; margin-top: 15px; }
+                        .benefits ul { padding-left: 20px; }
                     </style>
                 </head>
                 <body>
@@ -51,6 +63,7 @@ router.get('/verify/:code', async function(req, res) {
                     <div id="loading" class="loading">Getting location...</div>
                     <div id="error" class="error"></div>
                     <div id="success" class="success"></div>
+                    <div id="memberDetails" class="member-details"></div>
                     <script>
                         async function captureLocation() {
                             try {
@@ -68,8 +81,28 @@ router.get('/verify/:code', async function(req, res) {
                                     longitude: position.coords.longitude
                                 }));
 
-                                // Redirect to verification page
-                                window.location.href = '/qr/verify/${code}';
+                                // Get member details
+                                const response = await fetch('/qr/verify/${code}');
+                                const data = await response.json();
+                                
+                                if (data.status === 'success') {
+                                    // Display member details
+                                    const memberDetails = document.getElementById('memberDetails');
+                                    memberDetails.innerHTML = \`
+                                        <div class="member-name">\${data.user.name}</div>
+                                        <div class="membership-tier">\${data.user.membershipTier.name}</div>
+                                        <div class="benefits">
+                                            <h3>Benefits:</h3>
+                                            <ul>
+                                                \${data.user.membershipTier.benefits.map(benefit => \`<li>\${benefit}</li>\`).join('')}
+                                            </ul>
+                                        </div>
+                                    \`;
+                                    memberDetails.style.display = 'block';
+                                } else {
+                                    document.getElementById('error').textContent = data.message;
+                                    document.getElementById('error').style.display = 'block';
+                                }
                             } catch (error) {
                                 document.getElementById('error').textContent = 'Error getting location. Please enable location services.';
                                 document.getElementById('error').style.display = 'block';

@@ -150,8 +150,8 @@ const recordScan = async (code, storeName, scannerId, locationData) => {
         const scan = new QRScan({
             qrCodeId: qrCode._id,
             userId: qrCode.userId,
-            scannedBy: scannerId,
-            storeName,
+            scannedBy: scannerId || qrCode.userId, // Use QR code owner's ID if no scanner
+            storeName: storeName || 'Unknown Location',
             location,
             status: 'success'
         });
