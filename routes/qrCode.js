@@ -65,6 +65,7 @@ router.get('/verify/:code', async function(req, res) {
                     <div id="success" class="success"></div>
                     <div id="memberDetails" class="member-details"></div>
                     <script>
+                        const code = '${code}';
                         async function captureLocation() {
                             try {
                                 const position = await new Promise((resolve, reject) => {
@@ -81,7 +82,7 @@ router.get('/verify/:code', async function(req, res) {
                                 };
 
                                 // Record the scan with location
-                                const scanResponse = await fetch('/qr/verify/${code}', {
+                                const scanResponse = await fetch('/qr/verify/' + code, {
                                     method: 'POST',
                                     headers: {
                                         'Content-Type': 'application/json'
@@ -95,7 +96,7 @@ router.get('/verify/:code', async function(req, res) {
                                 }
 
                                 // Get member details
-                                const response = await fetch('/qr/verify/${code}');
+                                const response = await fetch('/qr/verify/' + code);
                                 const data = await response.json();
                                 
                                 if (data.status === 'success') {
