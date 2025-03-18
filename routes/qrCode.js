@@ -75,11 +75,24 @@ router.get('/verify/:code', async function(req, res) {
                                     });
                                 });
 
-                                // Store location in sessionStorage
-                                sessionStorage.setItem('scanLocation', JSON.stringify({
+                                const location = {
                                     latitude: position.coords.latitude,
                                     longitude: position.coords.longitude
-                                }));
+                                };
+
+                                // Record the scan with location
+                                const scanResponse = await fetch('/qr/verify/${code}', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json'
+                                    },
+                                    body: JSON.stringify({ location })
+                                });
+
+                                const scanResult = await scanResponse.json();
+                                if (scanResult.status !== 'success') {
+                                    throw new Error(scanResult.message || 'Failed to record scan');
+                                }
 
                                 // Get member details
                                 const response = await fetch('/qr/verify/${code}');
@@ -99,12 +112,14 @@ router.get('/verify/:code', async function(req, res) {
                                         </div>
                                     \`;
                                     memberDetails.style.display = 'block';
+                                    document.getElementById('success').textContent = 'Scan recorded successfully';
+                                    document.getElementById('success').style.display = 'block';
                                 } else {
                                     document.getElementById('error').textContent = data.message;
                                     document.getElementById('error').style.display = 'block';
                                 }
                             } catch (error) {
-                                document.getElementById('error').textContent = 'Error getting location. Please enable location services.';
+                                document.getElementById('error').textContent = error.message || 'Error getting location. Please enable location services.';
                                 document.getElementById('error').style.display = 'block';
                             }
                         }
