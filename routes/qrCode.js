@@ -42,7 +42,7 @@ router.get('/verify/:code', async function(req, res) {
 // Record QR code scan (requires auth for cashiers)
 router.post('/verify-qr', authenticateJWT, async function(req, res) {
     try {
-        const { code, storeName } = req.body;
+        const { code, storeName, location } = req.body;
 
         // Validate required fields
         if (!code || !storeName) {
@@ -52,7 +52,29 @@ router.post('/verify-qr', authenticateJWT, async function(req, res) {
             });
         }
 
-        const result = await recordScan(code, storeName, req.user.id);
+        // Validate location data if provided
+        if (location) {
+            if (!location.latitude || !location.longitude) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid location data. Both latitude and longitude are required.'
+                });
+            }
+            if (location.latitude < -90 || location.latitude > 90) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid latitude value'
+                });
+            }
+            if (location.longitude < -180 || location.longitude > 180) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid longitude value'
+                });
+            }
+        }
+
+        const result = await recordScan(code, storeName, req.user.id, location);
         res.json(result);
     } catch (error) {
         console.error('Error recording scan:', error);

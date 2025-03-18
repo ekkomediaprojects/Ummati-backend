@@ -127,7 +127,7 @@ const getMemberDetails = async (code) => {
 };
 
 // Record QR code scan
-const recordScan = async (code, storeName, scannerId) => {
+const recordScan = async (code, storeName, scannerId, locationData) => {
     try {
         const qrCode = await QRCode.findOne({ code, isActive: true });
         if (!qrCode) {
@@ -137,12 +137,22 @@ const recordScan = async (code, storeName, scannerId) => {
             };
         }
 
+        // Format location data if provided
+        let location = null;
+        if (locationData && locationData.latitude && locationData.longitude) {
+            location = {
+                type: 'Point',
+                coordinates: [locationData.longitude, locationData.latitude]
+            };
+        }
+
         // Record the scan
         const scan = new QRScan({
             qrCodeId: qrCode._id,
             userId: qrCode.userId,
             scannedBy: scannerId,
             storeName,
+            location,
             status: 'success'
         });
         
@@ -154,7 +164,11 @@ const recordScan = async (code, storeName, scannerId) => {
         
         return {
             status: 'success',
-            message: 'Scan recorded successfully'
+            message: 'Scan recorded successfully',
+            location: location ? {
+                latitude: location.coordinates[1],
+                longitude: location.coordinates[0]
+            } : null
         };
     } catch (error) {
         console.error('Error recording scan:', error);
