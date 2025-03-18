@@ -16,7 +16,7 @@ const generateQRCode = async (userId) => {
         const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
         
         // Create the display URL with location capture
-        const displayUrl = `${process.env.FRONTEND_URL}/qr/verify/${code}?captureLocation=true`;
+        const displayUrl = `${process.env.API_URL}/qr/verify/${code}?captureLocation=true`;
         
         // Generate QR code as data URL
         const qrCodeDataUrl = await qrcode.toDataURL(displayUrl, {
