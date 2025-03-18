@@ -65,7 +65,7 @@ router.get('/verify/:code', async function(req, res) {
                     <div id="success" class="success"></div>
                     <div id="memberDetails" class="member-details"></div>
                     <script>
-                        const code = '${code}';
+                        const code = "${code.replace(/"/g, '\\"')}";
                         async function captureLocation() {
                             try {
                                 const position = await new Promise((resolve, reject) => {
