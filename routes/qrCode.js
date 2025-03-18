@@ -43,12 +43,14 @@ router.get('/verify/:code', async function(req, res) {
                         body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
                         .loading { display: none; }
                         .error { color: red; display: none; }
+                        .success { color: green; display: none; }
                     </style>
                 </head>
                 <body>
                     <h2>Verifying QR Code</h2>
                     <div id="loading" class="loading">Getting location...</div>
                     <div id="error" class="error"></div>
+                    <div id="success" class="success"></div>
                     <script>
                         async function captureLocation() {
                             try {
@@ -60,27 +62,14 @@ router.get('/verify/:code', async function(req, res) {
                                     });
                                 });
 
-                                // Send location to backend
-                                const response = await fetch('/qr/verify/${code}', {
-                                    method: 'POST',
-                                    headers: {
-                                        'Content-Type': 'application/json'
-                                    },
-                                    body: JSON.stringify({
-                                        location: {
-                                            latitude: position.coords.latitude,
-                                            longitude: position.coords.longitude
-                                        }
-                                    })
-                                });
+                                // Store location in sessionStorage
+                                sessionStorage.setItem('scanLocation', JSON.stringify({
+                                    latitude: position.coords.latitude,
+                                    longitude: position.coords.longitude
+                                }));
 
-                                const data = await response.json();
-                                if (data.status === 'success') {
-                                    window.location.href = '/qr/verify/${code}';
-                                } else {
-                                    document.getElementById('error').textContent = data.message;
-                                    document.getElementById('error').style.display = 'block';
-                                }
+                                // Redirect to verification page
+                                window.location.href = '/qr/verify/${code}';
                             } catch (error) {
                                 document.getElementById('error').textContent = 'Error getting location. Please enable location services.';
                                 document.getElementById('error').style.display = 'block';
@@ -109,42 +98,14 @@ router.get('/verify/:code', async function(req, res) {
     }
 });
 
-// Record QR code scan (requires auth for cashiers)
-router.post('/verify-qr', authenticateJWT, async function(req, res) {
+// Handle location capture POST request
+router.post('/verify/:code', async function(req, res) {
     try {
-        const { code, storeName, location } = req.body;
+        const { code } = req.params;
+        const { location } = req.body;
 
-        // Validate required fields
-        if (!code || !storeName) {
-            return res.status(400).json({
-                success: false,
-                message: 'Missing required fields'
-            });
-        }
-
-        // Validate location data if provided
-        if (location) {
-            if (!location.latitude || !location.longitude) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Invalid location data. Both latitude and longitude are required.'
-                });
-            }
-            if (location.latitude < -90 || location.latitude > 90) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Invalid latitude value'
-                });
-            }
-            if (location.longitude < -180 || location.longitude > 180) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Invalid longitude value'
-                });
-            }
-        }
-
-        const result = await recordScan(code, storeName, req.user.id, location);
+        // Record the scan with location
+        const result = await recordScan(code, 'Store', null, location);
         res.json(result);
     } catch (error) {
         console.error('Error recording scan:', error);
