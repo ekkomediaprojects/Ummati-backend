@@ -28,7 +28,77 @@ router.post('/generate-qr', authenticateJWT, async function(req, res) {
 // Get member details from QR code (no auth required)
 router.get('/verify/:code', async function(req, res) {
     try {
-        const result = await getMemberDetails(req.params.code);
+        const { code } = req.params;
+        const { captureLocation } = req.query;
+        
+        // If location capture is requested, return HTML with location capture script
+        if (captureLocation === 'true') {
+            const html = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Verifying QR Code</title>
+                    <meta name="viewport" content="width=device-width, initial-scale=1">
+                    <style>
+                        body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
+                        .loading { display: none; }
+                        .error { color: red; display: none; }
+                    </style>
+                </head>
+                <body>
+                    <h2>Verifying QR Code</h2>
+                    <div id="loading" class="loading">Getting location...</div>
+                    <div id="error" class="error"></div>
+                    <script>
+                        async function captureLocation() {
+                            try {
+                                const position = await new Promise((resolve, reject) => {
+                                    navigator.geolocation.getCurrentPosition(resolve, reject, {
+                                        enableHighAccuracy: true,
+                                        timeout: 5000,
+                                        maximumAge: 0
+                                    });
+                                });
+
+                                // Send location to backend
+                                const response = await fetch('/qr/verify/${code}', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json'
+                                    },
+                                    body: JSON.stringify({
+                                        location: {
+                                            latitude: position.coords.latitude,
+                                            longitude: position.coords.longitude
+                                        }
+                                    })
+                                });
+
+                                const data = await response.json();
+                                if (data.status === 'success') {
+                                    window.location.href = '/qr/verify/${code}';
+                                } else {
+                                    document.getElementById('error').textContent = data.message;
+                                    document.getElementById('error').style.display = 'block';
+                                }
+                            } catch (error) {
+                                document.getElementById('error').textContent = 'Error getting location. Please enable location services.';
+                                document.getElementById('error').style.display = 'block';
+                            }
+                        }
+
+                        // Start location capture
+                        document.getElementById('loading').style.display = 'block';
+                        captureLocation();
+                    </script>
+                </body>
+                </html>
+            `;
+            res.send(html);
+            return;
+        }
+
+        const result = await getMemberDetails(code);
         res.json(result);
     } catch (error) {
         console.error('Error getting member details:', error);
