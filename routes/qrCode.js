@@ -12,6 +12,7 @@ router.post('/generate-qr', authenticateJWT, async function(req, res) {
             data: {
                 code: qrCode.code,
                 displayUrl: qrCode.displayUrl,
+                qrCodeImage: qrCode.qrCodeImage,
                 expiresAt: qrCode.expiresAt
             }
         });
