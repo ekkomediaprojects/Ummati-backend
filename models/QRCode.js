@@ -30,7 +30,6 @@ const QRCodeSchema = new mongoose.Schema({
 });
 
 // Index for faster queries
-QRCodeSchema.index({ code: 1 });
 QRCodeSchema.index({ expiresAt: 1 });
 QRCodeSchema.index({ userId: 1 });
 

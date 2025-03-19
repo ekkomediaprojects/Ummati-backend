@@ -23,6 +23,7 @@ const eventbrite = require('./routes/eventbrite.js');
 const events = require('./routes/events.js');
 const stripeRoutes = require('./routes/stripe.js');
 const qrCodeRoutes = require('./routes/qrCode');
+const paymentRoutes = require('./routes/payments');
 
 // Use Routes
 app.use('/stripe', stripeRoutes); // Stripe routes first (needs raw body)
@@ -34,6 +35,7 @@ app.use('/emailSubscribers', emailSubscribers);
 app.use('/eventbrite', eventbrite);
 app.use('/events', events);
 app.use('/qr', qrCodeRoutes);
+app.use('/payments', paymentRoutes);
 
 // Database Connection
 mongoose.connect(process.env.MONGO_URI)

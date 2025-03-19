@@ -6,6 +6,7 @@ const transporter = require('../middleware/nodemailer');
 const Membership = require('../models/Membersip');
 const MembershipTier = require('../models/MembershipTier');
 const User = require('../models/Users');
+const Payments = require('../models/Payments');
 
 // Create a subscription
 router.post('/create-subscription', authenticateJWT, async (req, res) => {
@@ -357,6 +358,78 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
     try {
         switch (event.type) {
+            case 'charge.succeeded':
+                const charge = event.data.object;
+                const user = await User.findOne({ stripeCustomerId: charge.customer });
+                if (user) {
+                    const payment = new Payments({
+                        userId: user._id,
+                        amount: charge.amount / 100,
+                        date: new Date(charge.created * 1000),
+                        description: charge.description || 'One-time payment',
+                        paymentMethod: charge.payment_method_details?.type || 'card',
+                        status: 'Completed',
+                        stripeChargeId: charge.id,
+                        transactionType: 'one-time'
+                    });
+                    await payment.save();
+                }
+                break;
+
+            case 'charge.failed':
+                const failedCharge = event.data.object;
+                const failedUser = await User.findOne({ stripeCustomerId: failedCharge.customer });
+                if (failedUser) {
+                    const payment = new Payments({
+                        userId: failedUser._id,
+                        amount: failedCharge.amount / 100,
+                        date: new Date(failedCharge.created * 1000),
+                        description: failedCharge.description || 'Failed one-time payment',
+                        paymentMethod: failedCharge.payment_method_details?.type || 'card',
+                        status: 'Failed',
+                        stripeChargeId: failedCharge.id,
+                        transactionType: 'one-time'
+                    });
+                    await payment.save();
+                }
+                break;
+
+            case 'charge.refunded':
+                const refundedCharge = event.data.object;
+                const refundedUser = await User.findOne({ stripeCustomerId: refundedCharge.customer });
+                if (refundedUser) {
+                    const payment = new Payments({
+                        userId: refundedUser._id,
+                        amount: -refundedCharge.amount_refunded / 100, // Negative amount for refunds
+                        date: new Date(refundedCharge.created * 1000),
+                        description: `Refund: ${refundedCharge.description || 'Payment refund'}`,
+                        paymentMethod: refundedCharge.payment_method_details?.type || 'card',
+                        status: 'Refunded',
+                        stripeChargeId: refundedCharge.id,
+                        transactionType: 'refund'
+                    });
+                    await payment.save();
+                }
+                break;
+
+            case 'charge.dispute.created':
+                const disputedCharge = event.data.object;
+                const disputedUser = await User.findOne({ stripeCustomerId: disputedCharge.customer });
+                if (disputedUser) {
+                    const payment = new Payments({
+                        userId: disputedUser._id,
+                        amount: disputedCharge.amount / 100,
+                        date: new Date(disputedCharge.created * 1000),
+                        description: `Dispute created: ${disputedCharge.description || 'Payment disputed'}`,
+                        paymentMethod: disputedCharge.payment_method_details?.type || 'card',
+                        status: 'Disputed',
+                        stripeChargeId: disputedCharge.id,
+                        transactionType: 'dispute'
+                    });
+                    await payment.save();
+                }
+                break;
+
             case 'customer.subscription.updated':
             case 'customer.subscription.deleted':
                 const subscription = event.data.object;
@@ -365,6 +438,19 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
                 });
 
                 if (membership) {
+                    // Save subscription update transaction
+                    const payment = new Payments({
+                        userId: membership.userId,
+                        amount: subscription.items.data[0].price.unit_amount / 100,
+                        date: new Date(subscription.current_period_start * 1000),
+                        description: `Subscription ${subscription.status === 'canceled' ? 'cancelled' : 'updated'}: ${subscription.items.data[0].price.nickname || 'Plan change'}`,
+                        paymentMethod: 'subscription',
+                        status: subscription.status === 'canceled' ? 'Cancelled' : 'Updated',
+                        stripeSubscriptionId: subscription.id,
+                        transactionType: 'subscription'
+                    });
+                    await payment.save();
+
                     if (subscription.status === 'canceled' || subscription.status === 'unpaid') {
                         // Get the free tier
                         const freeTier = await MembershipTier.findOne({ price: 0 });
@@ -411,11 +497,25 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
                 });
 
                 if (paidMembership) {
+                    // Update membership status
                     paidMembership.status = 'Active';
                     paidMembership.lastPaymentStatus = 'succeeded';
                     paidMembership.lastPaymentDate = new Date();
                     paidMembership.failedPaymentAttempts = 0; // Reset failed attempts
                     await paidMembership.save();
+
+                    // Save transaction to local database
+                    const payment = new Payments({
+                        userId: paidMembership.userId,
+                        amount: invoice.amount_paid / 100, // Convert from cents to dollars
+                        date: new Date(invoice.created * 1000),
+                        description: `Membership payment - ${invoice.description || 'Subscription renewal'}`,
+                        paymentMethod: invoice.payment_intent ? 'card' : 'other',
+                        status: 'Completed',
+                        stripeInvoiceId: invoice.id,
+                        transactionType: 'subscription'
+                    });
+                    await payment.save();
 
                     // Send successful payment confirmation email
                     const user = await User.findById(paidMembership.userId);
@@ -442,6 +542,19 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
                 });
 
                 if (failedMembership) {
+                    // Save failed transaction to local database
+                    const payment = new Payments({
+                        userId: failedMembership.userId,
+                        amount: failedInvoice.amount_due / 100, // Convert from cents to dollars
+                        date: new Date(failedInvoice.created * 1000),
+                        description: `Failed membership payment - ${failedInvoice.description || 'Subscription renewal'}`,
+                        paymentMethod: failedInvoice.payment_intent ? 'card' : 'other',
+                        status: 'Failed',
+                        stripeInvoiceId: failedInvoice.id,
+                        transactionType: 'subscription'
+                    });
+                    await payment.save();
+
                     // Increment failed payment attempts
                     failedMembership.failedPaymentAttempts = (failedMembership.failedPaymentAttempts || 0) + 1;
                     failedMembership.status = 'Past_Due';
