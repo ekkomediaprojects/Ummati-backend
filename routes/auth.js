@@ -357,28 +357,29 @@ router.post('/google-login', async (req, res) => {
     }
 });
 
-// **Google Signup**
+// **Google Sign Up**
 router.post('/google-signup', async (req, res) => {
     try {
-        const { email, firstName, lastName, googleId } = req.body;
+        const { email, firstName, lastName, googleId, profilePicture } = req.body;
 
         // Validate input
         if (!email || !firstName || !lastName || !googleId) {
             return res.status(400).json({ message: 'All fields are required' });
         }
 
-        // Check if user already exists with Google ID or email
-        const existingUser = await User.findOne({ $or: [{ googleId }, { email }] });
+        // Check if email already exists
+        const existingUser = await User.findOne({ email });
         if (existingUser) {
-            return res.status(409).json({ message: 'User already exists' });
+            return res.status(409).json({ message: 'Email already in use' });
         }
 
-        // Create user without password
+        // Create user with Google info
         const user = await User.create({ 
             firstName, 
             lastName, 
             email, 
-            googleId 
+            googleId,
+            profilePicture // Store the Google profile picture URL
         });
 
         // Get the free membership tier
@@ -403,18 +404,109 @@ router.post('/google-signup', async (req, res) => {
         const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
         
         res.status(201).json({ 
-            message: 'User registered successfully', 
+            message: 'User registered successfully with Google', 
             token, 
             user: { 
                 id: user._id, 
                 firstName, 
                 lastName, 
-                email 
+                email,
+                profilePicture: user.profilePicture // Include profile picture in response
             } 
         });
     } catch (error) {
         console.error('Google signup error:', error);
         res.status(500).json({ message: 'Server error', error: error.message });
+    }
+});
+
+// **Update User Profile**
+router.put('/update-profile', authenticateJWT, async (req, res) => {
+    console.log('=== UPDATE PROFILE ROUTE START ===');
+    console.log('Request details:', {
+        user: req.user,
+        body: req.body
+    });
+
+    try {
+        const { id } = req.user;
+        const {
+            firstName,
+            lastName,
+            phoneNumber,
+            instagram,
+            linkedin,
+            streetAddress,
+            city,
+            state,
+            postalCode
+        } = req.body;
+
+        console.log('Building update object...');
+        const updateFields = {};
+        
+        // Add fields to update if they are provided
+        if (firstName) updateFields.firstName = firstName;
+        if (lastName) updateFields.lastName = lastName;
+        if (phoneNumber) updateFields.phoneNumber = phoneNumber;
+        if (instagram) updateFields.instagram = instagram;
+        if (linkedin) updateFields.linkedin = linkedin;
+        if (streetAddress) updateFields.streetAddress = streetAddress;
+        if (city) updateFields.city = city;
+        if (state) updateFields.state = state;
+        if (postalCode) updateFields.postalCode = postalCode;
+
+        console.log('Update fields:', updateFields);
+
+        // Check if there are any fields to update
+        if (Object.keys(updateFields).length === 0) {
+            console.log('No fields to update');
+            return res.status(400).json({ message: 'No fields provided for update' });
+        }
+
+        console.log('Updating user in database...');
+        const updatedUser = await User.findByIdAndUpdate(
+            id,
+            { $set: updateFields },
+            { new: true, runValidators: true }
+        );
+
+        if (!updatedUser) {
+            console.log('User not found:', id);
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        console.log('Profile updated successfully:', {
+            userId: id,
+            updatedFields: Object.keys(updateFields)
+        });
+
+        console.log('=== UPDATE PROFILE ROUTE END ===');
+        res.status(200).json({
+            message: 'Profile updated successfully',
+            user: {
+                id: updatedUser._id,
+                firstName: updatedUser.firstName,
+                lastName: updatedUser.lastName,
+                email: updatedUser.email, // Email is included in response but can't be changed
+                phoneNumber: updatedUser.phoneNumber,
+                instagram: updatedUser.instagram,
+                linkedin: updatedUser.linkedin,
+                streetAddress: updatedUser.streetAddress,
+                city: updatedUser.city,
+                state: updatedUser.state,
+                postalCode: updatedUser.postalCode,
+                profilePicture: updatedUser.profilePicture
+            }
+        });
+    } catch (error) {
+        console.error('Error updating profile:', error);
+        console.error('Error stack:', error.stack);
+        res.status(500).json({
+            message: 'Error updating profile',
+            error: error.message,
+            details: error.stack
+        });
     }
 });
 
