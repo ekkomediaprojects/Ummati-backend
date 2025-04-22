@@ -253,33 +253,66 @@ router.post('/upload-image', upload.single('image'), uploadToS3, async (req, res
 
 // **Upload Profile Picture**
 router.put('/profile-picture', authenticateJWT, upload.single('profilePicture'), uploadToS3, async (req, res) => {
-    try {
-        const { id } = req.user; // Extract user ID from the authenticated JWT
+    console.log('=== PROFILE PICTURE ROUTE HANDLER START ===');
+    console.log('Request details:', {
+        user: req.user,
+        file: req.file,
+        headers: req.headers,
+        body: req.body
+    });
 
-        if (!req.file || !req.file.location) {
-            return res.status(400).json({ message: 'No file uploaded or S3 upload failed' });
+    try {
+        console.log('Extracting user ID from request...');
+        const { id } = req.user;
+        console.log('User ID:', id);
+
+        console.log('Checking if file exists...');
+        if (!req.file) {
+            console.log('No file found in request');
+            return res.status(400).json({ message: 'No file uploaded' });
+        }
+
+        console.log('Checking if file location exists...');
+        if (!req.file.location) {
+            console.error('S3 upload failed - no location returned');
+            return res.status(500).json({ message: 'Failed to upload image to S3' });
         }
 
         const profilePictureUrl = req.file.location;
+        console.log('Profile picture URL:', profilePictureUrl);
 
+        console.log('Updating user in database...');
         // Update the user's profile picture
         const updatedUser = await User.findByIdAndUpdate(
             id,
             { profilePicture: profilePictureUrl },
-            { new: true, runValidators: true } // Return updated user, validate changes
+            { new: true, runValidators: true }
         );
 
+        console.log('Database update result:', updatedUser ? 'Success' : 'Failed');
         if (!updatedUser) {
+            console.error('User not found in database:', id);
             return res.status(404).json({ message: 'User not found' });
         }
 
+        console.log('Profile picture update successful:', {
+            userId: id,
+            profilePicture: updatedUser.profilePicture
+        });
+
+        console.log('=== PROFILE PICTURE ROUTE HANDLER END ===');
         res.status(200).json({
             message: 'Profile picture updated successfully',
             profilePicture: updatedUser.profilePicture,
         });
     } catch (error) {
-        console.error('Error updating profile picture:', error);
-        res.status(500).json({ message: 'Server error', error: error.message });
+        console.error('Error in profile picture route:', error);
+        console.error('Error stack:', error.stack);
+        res.status(500).json({ 
+            message: 'Server error', 
+            error: error.message,
+            details: error.stack
+        });
     }
 });
 
