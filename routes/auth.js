@@ -9,6 +9,7 @@ const nodemailer = require('nodemailer');
 const { authenticateJWT } = require('../middleware/auth');
 const { upload, uploadToS3 } = require('../middleware/s3'); // Import both upload and uploadToS3
 const { blacklistToken } = require('../middleware/blacklist');
+const s3 = require('../middleware/s3'); // Import s3 module
 
 const router = express.Router();
 
@@ -179,48 +180,7 @@ router.put('/reset-password/:token', async (req, res) => {
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
     }
-});
-
-// **Update Profile**
-router.put('/update-profile', authenticateJWT, async (req, res) => {
-    try {
-        const { firstName, lastName, instagram, linkedin, streetAddress, city, state, postalCode, phoneNumber } = req.body;
-        const { id } = req.user; // Extract user ID from JWT
-
-        // Build the update object dynamically
-        const updateFields = {};
-        if (firstName) updateFields.firstName = firstName;
-        if (lastName) updateFields.lastName = lastName;
-        if (instagram) updateFields.instagram = instagram;
-        if (linkedin) updateFields.linkedin = linkedin;
-        if (streetAddress) updateFields.streetAddress = streetAddress;
-        if (city) updateFields.city = city;
-        if (state) updateFields.state = state;
-        if (postalCode) updateFields.postalCode = postalCode;
-        if (phoneNumber) updateFields.phoneNumber = phoneNumber;
-
-        // Update the user in the database
-        const updatedUser = await User.findByIdAndUpdate(
-            id,
-            { $set: updateFields },
-            { new: true, runValidators: true } // Return updated user and validate the changes
-        );
-
-        if (!updatedUser) {
-            return res.status(404).json({ message: 'User not found' });
-        }
-
-        res.status(200).json({
-            message: 'Profile updated successfully',
-            user: updatedUser,
-        });
-    } catch (error) {
-        console.error('Error updating profile:', error);
-        res.status(500).json({ message: 'Server error', error: error.message });
-    }
-});
-
-//       
+});       
 
 // **Upload Image to S3 (No Authentication)**
 router.post('/upload-image', upload.single('image'), uploadToS3, async (req, res) => {

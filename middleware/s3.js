@@ -1,16 +1,16 @@
-const AWS = require('aws-sdk');
+const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const multer = require('multer');
 const path = require('path');
 
-// Configure AWS
-AWS.config.update({
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-    region: process.env.AWS_REGION
+// Configure AWS S3 client
+const s3 = new S3Client({
+    region: process.env.AWS_REGION || 'us-east-1', // Default to us-east-1 if not set
+    credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+    }
 });
-
-const s3 = new AWS.S3();
-console.log('AWS S3 client initialized');
+console.log('AWS S3 client initialized with region:', process.env.AWS_REGION || 'us-east-1');
 
 // Configure multer for memory storage
 const storage = multer.memoryStorage();
@@ -57,33 +57,49 @@ const upload = multer({
 });
 
 const uploadToS3 = async (req, res, next) => {
-    console.log('Processing S3 upload request:', {
-        method: req.method,
-        path: req.path,
-        url: req.originalUrl
+    console.log('=== S3 UPLOAD MIDDLEWARE START ===');
+    console.log('Full request object:', {
+        headers: req.headers,
+        body: req.body,
+        file: req.file,
+        user: req.user
     });
 
     try {
+        console.log('Checking if file exists in request...');
         if (!req.file) {
             console.log('No file found in request');
-            return res.status(400).json({ message: 'No file uploaded' });
+            return next();
         }
 
+        console.log('File details:', {
+            originalname: req.file.originalname,
+            mimetype: req.file.mimetype,
+            size: req.file.size
+        });
+
+        console.log('Checking user information...');
         if (!req.user) {
-            console.log('No user information found in request');
-            return res.status(400).json({ message: 'User information is required' });
+            console.error('No user information found in request');
+            return res.status(401).json({ message: 'User not authenticated' });
         }
 
-        if (!req.user.firstName || !req.user.lastName) {
-            console.log('User missing first or last name:', req.user);
-            return res.status(400).json({ message: 'User first and last name are required' });
-        }
+        console.log('User details:', {
+            id: req.user.id,
+            firstName: req.user.firstName,
+            lastName: req.user.lastName
+        });
 
+        // Generate clean filename
         const filename = generateCleanFilename(req.user, req.file.originalname);
-        const filePath = `profile-pictures/${req.user.id}/${filename}`;
-        console.log('Generated file path:', filePath);
+        console.log('Generated filename:', filename);
 
-        const params = {
+        // Create directory path using user's name
+        const userDir = `${req.user.firstName}-${req.user.lastName}`.toLowerCase();
+        const filePath = `profile-pictures/${userDir}/${filename}`;
+        console.log('Full file path:', filePath);
+
+        const command = new PutObjectCommand({
             Bucket: process.env.AWS_S3_BUCKET_NAME,
             Key: filePath,
             Body: req.file.buffer,
@@ -94,22 +110,34 @@ const uploadToS3 = async (req, res, next) => {
                 lastName: req.user.lastName,
                 uploadDate: new Date().toISOString()
             }
-        };
-
-        console.log('Uploading to S3 with params:', { ...params, Body: '[Buffer]' });
-        const result = await s3.upload(params).promise();
-        console.log('S3 upload successful:', { 
-            location: result.Location,
-            key: result.Key
         });
 
-        req.file.location = result.Location;
+        console.log('S3 upload parameters:', {
+            bucket: command.input.Bucket,
+            key: command.input.Key,
+            contentType: command.input.ContentType,
+            metadata: command.input.Metadata,
+            region: process.env.AWS_REGION || 'us-east-1'
+        });
+
+        console.log('Uploading to S3...');
+        const result = await s3.send(command);
+        console.log('S3 upload result:', result);
+
+        // Construct the file URL
+        const fileUrl = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${filePath}`;
+        req.file.location = fileUrl;
+        console.log('File location set to:', req.file.location);
+
+        console.log('=== S3 UPLOAD MIDDLEWARE END ===');
         next();
     } catch (error) {
-        console.error('S3 upload failed:', error);
+        console.error('S3 upload error:', error);
+        console.error('Error stack:', error.stack);
         res.status(500).json({ 
-            message: 'Failed to upload image to S3', 
-            error: error.message
+            message: 'Failed to upload file to S3', 
+            error: error.message,
+            details: error.stack
         });
     }
 };
