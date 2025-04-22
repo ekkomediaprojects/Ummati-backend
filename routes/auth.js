@@ -320,5 +320,109 @@ router.post('/logout', authenticateJWT, (req, res) => {
     }
 });
 
+// **Google Login**
+router.post('/google-login', async (req, res) => {
+    try {
+        const { email, googleId } = req.body;
+
+        // Validate input
+        if (!email || !googleId) {
+            return res.status(400).json({ message: 'Email and Google ID are required' });
+        }
+
+        // Find user by Google ID
+        let user = await User.findOne({ googleId });
+        
+        // If user not found by Google ID, check by email
+        if (!user) {
+            user = await User.findOne({ email });
+            if (user) {
+                // Link Google ID to existing account
+                user.googleId = googleId;
+                await user.save();
+            } else {
+                return res.status(401).json({ message: 'Please sign up first' });
+            }
+        }
+
+        // Generate JWT
+        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+        res.status(200).json({ 
+            message: 'Login successful', 
+            token, 
+            user: { 
+                id: user._id, 
+                firstName: user.firstName, 
+                lastName: user.lastName, 
+                email: user.email, 
+                profilePicture: user.profilePicture || null
+            } 
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+});
+
+// **Google Signup**
+router.post('/google-signup', async (req, res) => {
+    try {
+        const { email, firstName, lastName, googleId } = req.body;
+
+        // Validate input
+        if (!email || !firstName || !lastName || !googleId) {
+            return res.status(400).json({ message: 'All fields are required' });
+        }
+
+        // Check if user already exists with Google ID or email
+        const existingUser = await User.findOne({ $or: [{ googleId }, { email }] });
+        if (existingUser) {
+            return res.status(409).json({ message: 'User already exists' });
+        }
+
+        // Create user without password
+        const user = await User.create({ 
+            firstName, 
+            lastName, 
+            email, 
+            googleId 
+        });
+
+        // Get the free membership tier
+        const freeTier = await MembershipTier.findOne({ price: 0 });
+        if (!freeTier) {
+            console.error('Free membership tier not found');
+            return res.status(500).json({ message: 'Error creating free membership' });
+        }
+
+        // Create free membership for the user
+        const membership = new Membership({
+            userId: user._id,
+            membershipTierId: freeTier._id,
+            status: 'Active',
+            currentPeriodStart: new Date(),
+            currentPeriodEnd: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year from now
+        });
+
+        await membership.save();
+
+        // Generate JWT token
+        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+        
+        res.status(201).json({ 
+            message: 'User registered successfully', 
+            token, 
+            user: { 
+                id: user._id, 
+                firstName, 
+                lastName, 
+                email 
+            } 
+        });
+    } catch (error) {
+        console.error('Google signup error:', error);
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+});
 
 module.exports = router;
