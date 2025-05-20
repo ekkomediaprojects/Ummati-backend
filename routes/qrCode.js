@@ -46,45 +46,181 @@ router.get('/verify/:code', async function(req, res) {
                 <!DOCTYPE html>
                 <html>
                 <head>
-                    <title>Verifying QR Code</title>
+                    <title>Ummati Community - Member Verification</title>
                     <meta name="viewport" content="width=device-width, initial-scale=1">
+                    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
                     <style>
-                        body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
-                        .loading { display: none; }
-                        .error { color: red; display: none; }
-                        .success { color: green; display: none; }
-                        .member-details { 
-                            max-width: 400px; 
-                            margin: 20px auto; 
-                            padding: 20px; 
-                            border: 1px solid #ddd; 
-                            border-radius: 8px;
-                            display: none;
+                        :root {
+                            --primary-color: #4CAF50;
+                            --secondary-color: #2E7D32;
+                            --text-color: #333;
+                            --light-gray: #f5f5f5;
+                            --border-radius: 12px;
                         }
-                        .member-name { font-size: 24px; margin-bottom: 10px; }
-                        .membership-tier { color: #666; margin-bottom: 15px; }
-                        .benefits { text-align: left; margin-top: 15px; }
-                        .benefits ul { padding-left: 20px; }
-                        .debug { 
-                            text-align: left; 
-                            margin: 20px auto; 
-                            padding: 10px; 
-                            background: #f5f5f5; 
-                            border-radius: 4px;
-                            font-family: monospace;
+                        
+                        * {
+                            margin: 0;
+                            padding: 0;
+                            box-sizing: border-box;
+                        }
+                        
+                        body {
+                            font-family: 'Poppins', sans-serif;
+                            background-color: var(--light-gray);
+                            color: var(--text-color);
+                            line-height: 1.6;
+                        }
+                        
+                        .container {
+                            max-width: 800px;
+                            margin: 0 auto;
+                            padding: 20px;
+                        }
+                        
+                        .header {
+                            background-color: white;
+                            padding: 20px;
+                            text-align: center;
+                            border-radius: var(--border-radius);
+                            margin-bottom: 20px;
+                            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                        }
+                        
+                        .logo {
+                            max-width: 200px;
+                            margin-bottom: 10px;
+                        }
+                        
+                        .verification-status {
+                            text-align: center;
+                            margin: 20px 0;
+                        }
+                        
+                        .member-card {
+                            background: white;
+                            border-radius: var(--border-radius);
+                            padding: 30px;
+                            margin: 20px 0;
+                            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                        }
+                        
+                        .profile-section {
+                            display: flex;
+                            align-items: center;
+                            margin-bottom: 20px;
+                        }
+                        
+                        .profile-picture {
+                            width: 100px;
+                            height: 100px;
+                            border-radius: 50%;
+                            object-fit: cover;
+                            margin-right: 20px;
+                            border: 3px solid var(--primary-color);
+                        }
+                        
+                        .member-info {
+                            flex: 1;
+                        }
+                        
+                        .member-name {
+                            font-size: 24px;
+                            font-weight: 600;
+                            color: var(--text-color);
+                            margin-bottom: 5px;
+                        }
+                        
+                        .membership-tier {
+                            color: var(--primary-color);
+                            font-weight: 500;
+                            margin-bottom: 10px;
+                        }
+                        
+                        .benefits-section {
+                            margin-top: 20px;
+                        }
+                        
+                        .benefits-title {
+                            font-size: 18px;
+                            font-weight: 500;
+                            margin-bottom: 15px;
+                            color: var(--secondary-color);
+                        }
+                        
+                        .benefits-list {
+                            list-style: none;
+                        }
+                        
+                        .benefits-list li {
+                            padding: 10px 0;
+                            border-bottom: 1px solid var(--light-gray);
+                        }
+                        
+                        .benefits-list li:last-child {
+                            border-bottom: none;
+                        }
+                        
+                        .status-message {
+                            padding: 15px;
+                            border-radius: var(--border-radius);
+                            margin: 20px 0;
+                            text-align: center;
+                        }
+                        
+                        .success {
+                            background-color: #E8F5E9;
+                            color: var(--secondary-color);
+                        }
+                        
+                        .error {
+                            background-color: #FFEBEE;
+                            color: #C62828;
+                        }
+                        
+                        .loading {
+                            text-align: center;
+                            padding: 20px;
+                        }
+                        
+                        .debug {
                             display: none;
                         }
                     </style>
                 </head>
                 <body>
-                    <h2>Verifying QR Code</h2>
-                    <div id="loading" class="loading">Getting location...</div>
-                    <div id="error" class="error"></div>
-                    <div id="success" class="success"></div>
-                    <div id="memberDetails" class="member-details"></div>
-                    <div id="debug" class="debug"></div>
+                    <div class="container">
+                        <div class="header">
+                            <img src="https://api.ummaticommunity.com/images/ummati-logo.png" alt="Ummati Logo" class="logo">
+                            <h1>Member Verification</h1>
+                        </div>
+                        
+                        <div id="loading" class="loading">
+                            <p>Verifying membership...</p>
+                        </div>
+                        
+                        <div id="error" class="error status-message"></div>
+                        <div id="success" class="success status-message"></div>
+                        
+                        <div id="memberDetails" class="member-card">
+                            <div class="profile-section">
+                                <img id="profilePicture" class="profile-picture" src="" alt="Profile Picture">
+                                <div class="member-info">
+                                    <h2 id="memberName" class="member-name"></h2>
+                                    <div id="membershipTier" class="membership-tier"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="benefits-section">
+                                <h3 class="benefits-title">Membership Benefits</h3>
+                                <ul id="benefitsList" class="benefits-list"></ul>
+                            </div>
+                        </div>
+                        
+                        <div id="debug" class="debug"></div>
+                    </div>
+                    
                     <script>
-                        const code = "${code.replace(/"/g, '\\"')}";
+                        const code = "${code}";
                         const debugDiv = document.getElementById('debug');
                         
                         function log(message) {
@@ -92,7 +228,6 @@ router.get('/verify/:code', async function(req, res) {
                             const p = document.createElement('p');
                             p.textContent = new Date().toISOString() + ': ' + message;
                             debugDiv.appendChild(p);
-                            debugDiv.style.display = 'block';
                         }
 
                         async function captureLocation() {
@@ -136,38 +271,47 @@ router.get('/verify/:code', async function(req, res) {
                                 log('Member details response: ' + JSON.stringify(data));
                                 
                                 if (data.status === 'success') {
-                                    // Display member details
-                                    const memberDetails = document.getElementById('memberDetails');
-                                    memberDetails.innerHTML = \`
-                                        <div class="member-name">\${data.user.name}</div>
-                                        <div class="membership-tier">\${data.user.membershipTier.name}</div>
-                                        <div class="benefits">
-                                            <h3>Benefits:</h3>
-                                            <ul>
-                                                \${data.user.membershipTier.benefits.map(benefit => \`<li>\${benefit}</li>\`).join('')}
-                                            </ul>
-                                        </div>
-                                    \`;
-                                    memberDetails.style.display = 'block';
-                                    document.getElementById('success').textContent = 'Scan recorded successfully';
+                                    // Update profile picture
+                                    const profilePicture = document.getElementById('profilePicture');
+                                    profilePicture.src = data.user.profilePicture || 'https://api.ummaticommunity.com/images/default-profile.png';
+                                    
+                                    // Update member name
+                                    document.getElementById('memberName').textContent = data.user.name;
+                                    
+                                    // Update membership tier
+                                    document.getElementById('membershipTier').textContent = data.user.membershipTier.name;
+                                    
+                                    // Update benefits list
+                                    const benefitsList = document.getElementById('benefitsList');
+                                    benefitsList.innerHTML = data.user.membershipTier.benefits
+                                        .map(benefit => \`<li>\${benefit}</li>\`)
+                                        .join('');
+                                    
+                                    // Show success message
+                                    document.getElementById('success').textContent = 'Member verified successfully';
                                     document.getElementById('success').style.display = 'block';
+                                    
+                                    // Hide loading
+                                    document.getElementById('loading').style.display = 'none';
+                                    
                                     log('Member details displayed successfully');
                                 } else {
                                     document.getElementById('error').textContent = data.message;
                                     document.getElementById('error').style.display = 'block';
+                                    document.getElementById('loading').style.display = 'none';
                                     log('Error displaying member details: ' + data.message);
                                 }
                             } catch (error) {
                                 const errorMessage = error.message || 'Error getting location. Please enable location services.';
                                 document.getElementById('error').textContent = errorMessage;
                                 document.getElementById('error').style.display = 'block';
+                                document.getElementById('loading').style.display = 'none';
                                 log('Error: ' + errorMessage);
                             }
                         }
 
                         // Start location capture
                         log('Initializing QR code verification...');
-                        document.getElementById('loading').style.display = 'block';
                         captureLocation();
                     </script>
                 </body>

@@ -4,6 +4,8 @@ const { authenticateJWT } = require('../middleware/auth');
 const User = require('../models/Users');
 const Event = require('../models/Events');
 const Payments = require('../models/Payments');
+const Membership = require('../models/Membersip');
+const { upload } = require('../middleware/s3');
 const mongoose = require('mongoose');
 const { initializeStripe, stripe } = require('../middleware/stripe');
 const nodemailer = require('nodemailer');
@@ -104,78 +106,76 @@ router.get('/dashboard', authenticateJWT, isAdmin, async (req, res) => {
 // Get all users with pagination and filtering
 router.get('/users', authenticateJWT, isAdmin, async (req, res) => {
     try {
-        const { page = 1, limit = 10, search, role } = req.query;
-        
-        // Build query
+        const { page = 1, limit = 10, search } = req.query;
         const query = {};
+        
         if (search) {
             query.$or = [
-                { name: { $regex: search, $options: 'i' } },
+                { firstName: { $regex: search, $options: 'i' } },
+                { lastName: { $regex: search, $options: 'i' } },
                 { email: { $regex: search, $options: 'i' } }
             ];
         }
-        if (role) {
-            query.role = role;
-        }
 
-        // Get total count
         const total = await User.countDocuments(query);
-
-        // Get paginated users
         const users = await User.find(query)
-            .select('-password') // Exclude password
+            .select('-password')
             .sort({ createdAt: -1 })
             .skip((page - 1) * limit)
             .limit(parseInt(limit));
 
         res.json({
             success: true,
-            data: {
-                users,
-                pagination: {
-                    total,
-                    page: parseInt(page),
-                    limit: parseInt(limit),
-                    totalPages: Math.ceil(total / limit)
-                }
+            data: users.map(user => ({
+                id: user._id,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                memberId: user.memberId,
+                status: user.status,
+                createdAt: user.createdAt
+            })),
+            pagination: {
+                total,
+                page: parseInt(page),
+                limit: parseInt(limit),
+                totalPages: Math.ceil(total / limit)
             }
         });
     } catch (error) {
-        console.error('Error fetching users:', error);
         res.status(500).json({
             success: false,
-            message: 'Error fetching users',
+            message: "Error fetching users",
             error: error.message
         });
     }
 });
 
 // Update user role
-router.put('/users/:id/role', authenticateJWT, isAdmin, async (req, res) => {
+router.put('/users/:id', authenticateJWT, isAdmin, async (req, res) => {
     try {
-        const { role } = req.body;
+        const { status, role } = req.body;
         const user = await User.findByIdAndUpdate(
             req.params.id,
-            { role },
+            { status, role },
             { new: true }
         ).select('-password');
 
         if (!user) {
             return res.status(404).json({
                 success: false,
-                message: 'User not found'
+                message: "User not found"
             });
         }
 
         res.json({
             success: true,
-            data: user
+            data: { user }
         });
     } catch (error) {
-        console.error('Error updating user role:', error);
         res.status(500).json({
             success: false,
-            message: 'Error updating user role',
+            message: "Error updating user",
             error: error.message
         });
     }
@@ -228,7 +228,6 @@ router.get('/payments/stats', authenticateJWT, isAdmin, async (req, res) => {
         });
     }
 });
-
 
 // Get users with active trials
 router.get('/users/trials', authenticateJWT, async (req, res) => {
@@ -328,38 +327,40 @@ router.get('/subscriptions', authenticateJWT, isAdmin, async (req, res) => {
 // Create a new event
 router.post('/events', authenticateJWT, isAdmin, async (req, res) => {
     try {
-        const { eventId, name, description, start, end, imageUrl, venue } = req.body;
-
-        // Validate required fields
-        if (!eventId || !name || !description || !start || !end) {
-            return res.status(400).json({
-                success: false,
-                message: 'Missing required fields'
-            });
-        }
-
-        // Create new event
-        const event = new Event({
-            eventId,
+        const {
             name,
             description,
-            start,
-            end,
+            quantity,
+            price,
             imageUrl,
-            venue
+            eventDate,
+            eventTypeId,
+            locationId,
+            cityId
+        } = req.body;
+
+        const event = new Event({
+            name,
+            description,
+            quantity,
+            price,
+            imageUrl,
+            eventDate,
+            eventTypeId,
+            locationId,
+            cityId
         });
 
         await event.save();
 
         res.status(201).json({
             success: true,
-            data: event
+            data: { event }
         });
     } catch (error) {
-        console.error('Error creating event:', error);
         res.status(500).json({
             success: false,
-            message: 'Error creating event',
+            message: "Error creating event",
             error: error.message
         });
     }
@@ -368,48 +369,51 @@ router.post('/events', authenticateJWT, isAdmin, async (req, res) => {
 // Get all events with pagination and filtering
 router.get('/events', authenticateJWT, isAdmin, async (req, res) => {
     try {
-        const { page = 1, limit = 10, search, startDate, endDate } = req.query;
-        
-        // Build query
+        const { page = 1, limit = 10, search } = req.query;
         const query = {};
+        
         if (search) {
             query.$or = [
                 { name: { $regex: search, $options: 'i' } },
                 { description: { $regex: search, $options: 'i' } }
             ];
         }
-        if (startDate || endDate) {
-            query.start = {};
-            if (startDate) query.start.$gte = new Date(startDate);
-            if (endDate) query.start.$lte = new Date(endDate);
-        }
 
-        // Get total count
         const total = await Event.countDocuments(query);
-
-        // Get paginated events
         const events = await Event.find(query)
-            .sort({ start: -1 })
+            .populate('eventTypeId', 'name color')
+            .populate('locationId', 'name address city state zipCode')
+            .sort({ createdAt: -1 })
             .skip((page - 1) * limit)
             .limit(parseInt(limit));
 
         res.json({
             success: true,
-            data: {
-                events,
-                pagination: {
-                    total,
-                    page: parseInt(page),
-                    limit: parseInt(limit),
-                    totalPages: Math.ceil(total / limit)
-                }
+            data: events.map(event => ({
+                id: event._id,
+                slug: event.slug,
+                name: event.name,
+                description: event.description,
+                quantity: event.quantity,
+                price: event.price,
+                imageUrl: event.imageUrl,
+                isActive: event.isActive,
+                eventDate: event.eventDate,
+                eventType: event.eventTypeId,
+                locationId: event.locationId,
+                cityId: event.cityId
+            })),
+            pagination: {
+                total,
+                page: parseInt(page),
+                limit: parseInt(limit),
+                totalPages: Math.ceil(total / limit)
             }
         });
     } catch (error) {
-        console.error('Error fetching events:', error);
         res.status(500).json({
             success: false,
-            message: 'Error fetching events',
+            message: "Error fetching events",
             error: error.message
         });
     }
@@ -444,30 +448,49 @@ router.get('/events/:id', authenticateJWT, isAdmin, async (req, res) => {
 // Update event
 router.put('/events/:id', authenticateJWT, isAdmin, async (req, res) => {
     try {
-        const { name, description, start, end, imageUrl, venue } = req.body;
+        const {
+            name,
+            description,
+            quantity,
+            price,
+            imageUrl,
+            eventDate,
+            eventTypeId,
+            locationId,
+            cityId
+        } = req.body;
 
         const event = await Event.findByIdAndUpdate(
             req.params.id,
-            { name, description, start, end, imageUrl, venue },
+            {
+                name,
+                description,
+                quantity,
+                price,
+                imageUrl,
+                eventDate,
+                eventTypeId,
+                locationId,
+                cityId
+            },
             { new: true }
         );
 
         if (!event) {
             return res.status(404).json({
                 success: false,
-                message: 'Event not found'
+                message: "Event not found"
             });
         }
 
         res.json({
             success: true,
-            data: event
+            data: { event }
         });
     } catch (error) {
-        console.error('Error updating event:', error);
         res.status(500).json({
             success: false,
-            message: 'Error updating event',
+            message: "Error updating event",
             error: error.message
         });
     }
@@ -477,23 +500,232 @@ router.put('/events/:id', authenticateJWT, isAdmin, async (req, res) => {
 router.delete('/events/:id', authenticateJWT, isAdmin, async (req, res) => {
     try {
         const event = await Event.findByIdAndDelete(req.params.id);
-
+        
         if (!event) {
             return res.status(404).json({
                 success: false,
-                message: 'Event not found'
+                message: "Event not found"
             });
         }
 
         res.json({
             success: true,
-            message: 'Event deleted successfully'
+            message: "Event deleted successfully"
         });
     } catch (error) {
-        console.error('Error deleting event:', error);
         res.status(500).json({
             success: false,
-            message: 'Error deleting event',
+            message: "Error deleting event",
+            error: error.message
+        });
+    }
+});
+
+// 4. Event Locations (using venue from Events model)
+router.get('/event-locations', authenticateJWT, isAdmin, async (req, res) => {
+    try {
+        const { page = 1, limit = 10 } = req.query;
+        const total = await Event.countDocuments();
+        
+        const events = await Event.find()
+            .select('venue')
+            .sort({ 'venue.name': 1 })
+            .skip((page - 1) * limit)
+            .limit(parseInt(limit));
+
+        const locations = events.map(event => ({
+            id: event._id,
+            name: event.venue.name,
+            address: event.venue.addressLine1,
+            city: event.venue.city,
+            state: event.venue.state,
+            zipCode: event.venue.postalCode
+        }));
+
+        res.json({
+            success: true,
+            data: locations,
+            pagination: {
+                total,
+                page: parseInt(page),
+                limit: parseInt(limit),
+                totalPages: Math.ceil(total / limit)
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Error fetching locations",
+            error: error.message
+        });
+    }
+});
+
+// 6. Membership Management
+router.get('/memberships', authenticateJWT, isAdmin, async (req, res) => {
+    try {
+        const { page = 1, limit = 10 } = req.query;
+        const total = await Membership.countDocuments();
+        
+        const memberships = await Membership.find()
+            .populate('userId', 'firstName lastName email')
+            .populate('membershipTierId', 'name price')
+            .sort({ createdAt: -1 })
+            .skip((page - 1) * limit)
+            .limit(parseInt(limit));
+
+        res.json({
+            success: true,
+            data: memberships.map(membership => ({
+                id: membership._id,
+                userId: membership.userId,
+                type: membership.membershipTierId,
+                status: membership.status,
+                startDate: membership.startDate,
+                endDate: membership.endDate
+            })),
+            pagination: {
+                total,
+                page: parseInt(page),
+                limit: parseInt(limit),
+                totalPages: Math.ceil(total / limit)
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Error fetching memberships",
+            error: error.message
+        });
+    }
+});
+
+router.put('/memberships/:id', authenticateJWT, isAdmin, async (req, res) => {
+    try {
+        const { status, type } = req.body;
+        const membership = await Membership.findByIdAndUpdate(
+            req.params.id,
+            { 
+                status,
+                membershipTierId: type
+            },
+            { new: true }
+        );
+
+        if (!membership) {
+            return res.status(404).json({
+                success: false,
+                message: "Membership not found"
+            });
+        }
+
+        res.json({
+            success: true,
+            message: "Membership updated successfully"
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Error updating membership",
+            error: error.message
+        });
+    }
+});
+
+// 7. File Upload
+router.post('/upload', authenticateJWT, isAdmin, upload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                message: "No file uploaded"
+            });
+        }
+
+        res.json({
+            success: true,
+            data: {
+                url: req.file.location // S3 URL
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Error uploading file",
+            error: error.message
+        });
+    }
+});
+
+// 1. Authentication & Admin Verification
+router.get('/auth/check-admin', authenticateJWT, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id);
+        res.json({
+            success: true,
+            data: {
+                isAdmin: user?.role === 'admin'
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Error checking admin status",
+            error: error.message
+        });
+    }
+});
+
+// 2. User Profile Management
+router.get('/user/profile', authenticateJWT, isAdmin, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id).select('-password');
+        res.json({
+            success: true,
+            data: {
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                mobile: user.phoneNumber,
+                linkedIN: user.linkedin,
+                instagram: user.instagram,
+                avatar: user.profilePicture
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Error fetching profile",
+            error: error.message
+        });
+    }
+});
+
+router.put('/user/update-profile', authenticateJWT, isAdmin, async (req, res) => {
+    try {
+        const { firstName, lastName, email, mobile, linkedIN, instagram, avatar } = req.body;
+        const user = await User.findByIdAndUpdate(
+            req.user.id,
+            {
+                firstName,
+                lastName,
+                email,
+                phoneNumber: mobile,
+                linkedin: linkedIN,
+                instagram,
+                profilePicture: avatar
+            },
+            { new: true }
+        ).select('-password');
+
+        res.json({
+            success: true,
+            message: "Profile updated successfully"
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Error updating profile",
             error: error.message
         });
     }

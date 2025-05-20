@@ -121,6 +121,22 @@ router.post('/forgot-password', async (req, res) => {
             return res.status(404).json({ message: 'User not found' });
         }
 
+        // Check if user signed up with Google
+        if (user.googleId) {
+            return res.status(400).json({ 
+                message: 'This account was created using Google. Please use Google\'s password reset functionality.',
+                isGoogleUser: true
+            });
+        }
+
+        // Check if user has a password (should always be true for non-Google users)
+        if (!user.password) {
+            return res.status(400).json({ 
+                message: 'This account does not have a password set. Please contact support.',
+                isGoogleUser: false
+            });
+        }
+
         // Generate reset token
         const resetToken = crypto.randomBytes(32).toString('hex');
         user.resetPasswordToken = crypto.createHash('sha256').update(resetToken).digest('hex');
