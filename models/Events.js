@@ -15,6 +15,12 @@ const eventSchema = new mongoose.Schema({
         state: { type: String }, // State/region
         postalCode: { type: String }, // Postal code
     },
+    externalUrls: {
+        eventbrite: { type: String }, // Eventbrite event URL
+        meetup: { type: String }, // Meetup event URL
+        zeffy: { type: String }, // Zeffy event URL
+        other: { type: String } // URL for other platforms
+    },
     createdAt: { type: Date, default: Date.now }, // Timestamp for when the event is saved
 });
 

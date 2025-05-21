@@ -9,6 +9,7 @@ const { upload } = require('../middleware/s3');
 const mongoose = require('mongoose');
 const { stripe } = require('../middleware/stripe');
 const nodemailer = require('nodemailer');
+const bcrypt = require('bcrypt');
 
 // Middleware to check if user is admin
 const isAdmin = async (req, res, next) => {
@@ -77,7 +78,7 @@ router.get('/dashboard', authenticateJWT, isAdmin, async (req, res) => {
             { $sort: { _id: 1 } }
         ]);
 
-        res.json({
+        res.status(200).json({
             success: true,
             data: {
                 statistics: {
@@ -121,22 +122,24 @@ router.get('/users', authenticateJWT, isAdmin, async (req, res) => {
             .skip((page - 1) * limit)
             .limit(parseInt(limit));
 
-        res.json({
+        res.status(200).json({
             success: true,
-            data: users.map(user => ({
-                id: user._id,
-                firstName: user.firstName,
-                lastName: user.lastName,
-                email: user.email,
-                profilePicture: user.profilePicture,
-                role: user.role,
-                createdAt: user.createdAt
-            })),
-            pagination: {
-                total,
-                page: parseInt(page),
-                limit: parseInt(limit),
-                totalPages: Math.ceil(total / limit)
+            data: {
+                users: users.map(user => ({
+                    id: user._id,
+                    firstName: user.firstName,
+                    lastName: user.lastName,
+                    email: user.email,
+                    profilePicture: user.profilePicture,
+                    role: user.role,
+                    createdAt: user.createdAt
+                })),
+                pagination: {
+                    total,
+                    page: parseInt(page),
+                    limit: parseInt(limit),
+                    totalPages: Math.ceil(total / limit)
+                }
             }
         });
     } catch (error) {
@@ -165,7 +168,7 @@ router.put('/users/:id', authenticateJWT, isAdmin, async (req, res) => {
             });
         }
 
-        res.json({
+        res.status(200).json({
             success: true,
             data: { user }
         });
@@ -319,6 +322,17 @@ router.get('/subscriptions', authenticateJWT, isAdmin, async (req, res) => {
     }
 });
 
+// URL validation function
+const isValidUrl = (url) => {
+    if (!url) return true; // Allow empty/null values
+    try {
+        new URL(url);
+        return true;
+    } catch (error) {
+        return false;
+    }
+};
+
 // Event Management Routes
 
 // Create a new event
@@ -333,8 +347,33 @@ router.post('/events', authenticateJWT, isAdmin, async (req, res) => {
             eventDate,
             eventTypeId,
             locationId,
-            cityId
+            cityId,
+            externalUrls
         } = req.body;
+
+        // Validate external URLs if provided
+        if (externalUrls) {
+            const invalidUrls = [];
+            if (externalUrls.eventbrite && !isValidUrl(externalUrls.eventbrite)) {
+                invalidUrls.push('eventbrite');
+            }
+            if (externalUrls.meetup && !isValidUrl(externalUrls.meetup)) {
+                invalidUrls.push('meetup');
+            }
+            if (externalUrls.zeffy && !isValidUrl(externalUrls.zeffy)) {
+                invalidUrls.push('zeffy');
+            }
+            if (externalUrls.other && !isValidUrl(externalUrls.other)) {
+                invalidUrls.push('other');
+            }
+
+            if (invalidUrls.length > 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Invalid URLs provided for: ${invalidUrls.join(', ')}`
+                });
+            }
+        }
 
         const event = new Event({
             name,
@@ -345,7 +384,8 @@ router.post('/events', authenticateJWT, isAdmin, async (req, res) => {
             eventDate,
             eventTypeId,
             locationId,
-            cityId
+            cityId,
+            externalUrls
         });
 
         await event.save();
@@ -430,8 +470,33 @@ router.put('/events/:id', authenticateJWT, isAdmin, async (req, res) => {
             eventDate,
             eventTypeId,
             locationId,
-            cityId
+            cityId,
+            externalUrls
         } = req.body;
+
+        // Validate external URLs if provided
+        if (externalUrls) {
+            const invalidUrls = [];
+            if (externalUrls.eventbrite && !isValidUrl(externalUrls.eventbrite)) {
+                invalidUrls.push('eventbrite');
+            }
+            if (externalUrls.meetup && !isValidUrl(externalUrls.meetup)) {
+                invalidUrls.push('meetup');
+            }
+            if (externalUrls.zeffy && !isValidUrl(externalUrls.zeffy)) {
+                invalidUrls.push('zeffy');
+            }
+            if (externalUrls.other && !isValidUrl(externalUrls.other)) {
+                invalidUrls.push('other');
+            }
+
+            if (invalidUrls.length > 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Invalid URLs provided for: ${invalidUrls.join(', ')}`
+                });
+            }
+        }
 
         const event = await Event.findByIdAndUpdate(
             req.params.id,
@@ -444,7 +509,8 @@ router.put('/events/:id', authenticateJWT, isAdmin, async (req, res) => {
                 eventDate,
                 eventTypeId,
                 locationId,
-                cityId
+                cityId,
+                externalUrls
             },
             { new: true }
         );
@@ -690,6 +756,48 @@ router.put('/user/update-profile', authenticateJWT, isAdmin, async (req, res) =>
         res.status(500).json({
             success: false,
             message: "Error updating profile",
+            error: error.message
+        });
+    }
+});
+
+// Update admin password
+router.put('/user/update-password', authenticateJWT, isAdmin, async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+        const user = await User.findById(req.user.id);
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        // Verify current password
+        const isMatch = await bcrypt.compare(currentPassword, user.password);
+        if (!isMatch) {
+            return res.status(401).json({
+                success: false,
+                message: "Current password is incorrect"
+            });
+        }
+
+        // Hash new password
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        
+        // Update password
+        user.password = hashedPassword;
+        await user.save();
+
+        res.status(200).json({
+            success: true,
+            message: "Password updated successfully"
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Error updating password",
             error: error.message
         });
     }
