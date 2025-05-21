@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const membershipSchema = new mongoose.Schema({
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'Users', required: true },
     membershipTierId: { type: mongoose.Schema.Types.ObjectId, ref: 'MembershipTier', required: true },
     stripeCustomerId: { type: String }, // Optional for free memberships
     stripeSubscriptionId: { type: String }, // Optional for free memberships

@@ -87,7 +87,7 @@ router.post('/login', async (req, res) => {
         // Generate JWT
         const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
-        // Include profile picture in the response
+        // Include profile picture and role in the response
         res.status(200).json({ 
             message: 'Login successful', 
             token, 
@@ -96,7 +96,8 @@ router.post('/login', async (req, res) => {
                 firstName: user.firstName, 
                 lastName: user.lastName, 
                 email: user.email, 
-                profilePicture: user.profilePicture || null // Include profile picture
+                profilePicture: user.profilePicture || null,
+                role: user.role || 'user'
             } 
         });
     } catch (error) {

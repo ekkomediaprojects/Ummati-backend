@@ -7,11 +7,8 @@ const Payments = require('../models/Payments');
 const Membership = require('../models/Membersip');
 const { upload } = require('../middleware/s3');
 const mongoose = require('mongoose');
-const { initializeStripe, stripe } = require('../middleware/stripe');
+const { stripe } = require('../middleware/stripe');
 const nodemailer = require('nodemailer');
-
-// Initialize Stripe
-initializeStripe();
 
 // Middleware to check if user is admin
 const isAdmin = async (req, res, next) => {
@@ -52,7 +49,7 @@ router.get('/dashboard', authenticateJWT, isAdmin, async (req, res) => {
         const recentPayments = await Payments.find({ status: 'Completed' })
             .sort({ date: -1 })
             .limit(5)
-            .populate('userId', 'email name');
+            .populate('userId', 'email firstName lastName');
 
         // Get upcoming events
         const upcomingEvents = await Event.find({
@@ -131,8 +128,8 @@ router.get('/users', authenticateJWT, isAdmin, async (req, res) => {
                 firstName: user.firstName,
                 lastName: user.lastName,
                 email: user.email,
-                memberId: user.memberId,
-                status: user.status,
+                profilePicture: user.profilePicture,
+                role: user.role,
                 createdAt: user.createdAt
             })),
             pagination: {
@@ -154,10 +151,10 @@ router.get('/users', authenticateJWT, isAdmin, async (req, res) => {
 // Update user role
 router.put('/users/:id', authenticateJWT, isAdmin, async (req, res) => {
     try {
-        const { status, role } = req.body;
+        const { role } = req.body;
         const user = await User.findByIdAndUpdate(
             req.params.id,
-            { status, role },
+            { role },
             { new: true }
         ).select('-password');
 
@@ -369,40 +366,16 @@ router.post('/events', authenticateJWT, isAdmin, async (req, res) => {
 // Get all events with pagination and filtering
 router.get('/events', authenticateJWT, isAdmin, async (req, res) => {
     try {
-        const { page = 1, limit = 10, search } = req.query;
-        const query = {};
-        
-        if (search) {
-            query.$or = [
-                { name: { $regex: search, $options: 'i' } },
-                { description: { $regex: search, $options: 'i' } }
-            ];
-        }
-
-        const total = await Event.countDocuments(query);
-        const events = await Event.find(query)
-            .populate('eventTypeId', 'name color')
-            .populate('locationId', 'name address city state zipCode')
-            .sort({ createdAt: -1 })
+        const { page = 1, limit = 10 } = req.query;
+        const total = await Event.countDocuments();
+        const events = await Event.find()
+            .sort({ start: -1 })
             .skip((page - 1) * limit)
             .limit(parseInt(limit));
 
         res.json({
             success: true,
-            data: events.map(event => ({
-                id: event._id,
-                slug: event.slug,
-                name: event.name,
-                description: event.description,
-                quantity: event.quantity,
-                price: event.price,
-                imageUrl: event.imageUrl,
-                isActive: event.isActive,
-                eventDate: event.eventDate,
-                eventType: event.eventTypeId,
-                locationId: event.locationId,
-                cityId: event.cityId
-            })),
+            data: events,
             pagination: {
                 total,
                 page: parseInt(page),
@@ -566,24 +539,16 @@ router.get('/memberships', authenticateJWT, isAdmin, async (req, res) => {
     try {
         const { page = 1, limit = 10 } = req.query;
         const total = await Membership.countDocuments();
-        
         const memberships = await Membership.find()
             .populate('userId', 'firstName lastName email')
-            .populate('membershipTierId', 'name price')
-            .sort({ createdAt: -1 })
+            .populate('membershipTierId')
+            .sort({ startDate: -1 })
             .skip((page - 1) * limit)
             .limit(parseInt(limit));
 
         res.json({
             success: true,
-            data: memberships.map(membership => ({
-                id: membership._id,
-                userId: membership.userId,
-                type: membership.membershipTierId,
-                status: membership.status,
-                startDate: membership.startDate,
-                endDate: membership.endDate
-            })),
+            data: memberships,
             pagination: {
                 total,
                 page: parseInt(page),
@@ -600,17 +565,16 @@ router.get('/memberships', authenticateJWT, isAdmin, async (req, res) => {
     }
 });
 
+// Update membership
 router.put('/memberships/:id', authenticateJWT, isAdmin, async (req, res) => {
     try {
-        const { status, type } = req.body;
+        const { status, currentPeriodEnd } = req.body;
         const membership = await Membership.findByIdAndUpdate(
             req.params.id,
-            { 
-                status,
-                membershipTierId: type
-            },
+            { status, currentPeriodEnd },
             { new: true }
-        );
+        ).populate('userId', 'firstName lastName email')
+         .populate('membershipTierId');
 
         if (!membership) {
             return res.status(404).json({
@@ -621,7 +585,7 @@ router.put('/memberships/:id', authenticateJWT, isAdmin, async (req, res) => {
 
         res.json({
             success: true,
-            message: "Membership updated successfully"
+            data: { membership }
         });
     } catch (error) {
         res.status(500).json({
@@ -645,7 +609,7 @@ router.post('/upload', authenticateJWT, isAdmin, upload.single('file'), async (r
         res.json({
             success: true,
             data: {
-                url: req.file.location // S3 URL
+                fileUrl: req.file.location
             }
         });
     } catch (error) {

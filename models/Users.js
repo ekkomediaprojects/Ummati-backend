@@ -15,6 +15,7 @@ const usersSchema = new mongoose.Schema({
     postalCode: { type: String, default: null },
     phoneNumber: { type: String, default: null },
     stripeCustomerId: { type: String, unique: true, sparse: true }, // Stripe Customer ID
+    role: { type: String, enum: ['user', 'admin'], default: 'user' },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now },
 });
