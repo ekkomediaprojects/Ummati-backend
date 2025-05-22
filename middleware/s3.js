@@ -16,6 +16,66 @@ console.log('AWS S3 client initialized with region:', process.env.AWS_REGION || 
 const storage = multer.memoryStorage();
 console.log('Multer memory storage configured');
 
+// Helper function to generate event image filename
+const generateEventImageFilename = (originalname) => {
+    const ext = path.extname(originalname);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const randomString = Math.random().toString(36).substring(2, 15);
+    return `event-${timestamp}-${randomString}${ext}`;
+};
+
+// Multer configuration for event images
+const eventImageUpload = multer({
+    storage: storage,
+    limits: {
+        fileSize: 5 * 1024 * 1024 // 5MB limit
+    },
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
+        if (!allowedTypes.includes(file.mimetype)) {
+            cb(new Error('Invalid file type. Only JPEG, PNG, and GIF are allowed.'));
+        } else {
+            cb(null, true);
+        }
+    }
+});
+
+// S3 upload middleware for event images
+const uploadEventImageToS3 = async (req, res, next) => {
+    try {
+        if (!req.file) {
+            return next();
+        }
+
+        const filename = generateEventImageFilename(req.file.originalname);
+        const filePath = `events/${filename}`;
+
+        const command = new PutObjectCommand({
+            Bucket: process.env.AWS_S3_BUCKET_NAME,
+            Key: filePath,
+            Body: req.file.buffer,
+            ContentType: req.file.mimetype,
+            Metadata: {
+                uploadDate: new Date().toISOString()
+            }
+        });
+
+        await s3.send(command);
+
+        // Construct the file URL
+        const fileUrl = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${filePath}`;
+        req.file.location = fileUrl;
+
+        next();
+    } catch (error) {
+        console.error('S3 upload error:', error);
+        res.status(500).json({ 
+            message: 'Failed to upload event image to S3', 
+            error: error.message
+        });
+    }
+};
+
 // Helper function to generate clean filename
 const generateCleanFilename = (user, originalname) => {
     console.log('Generating clean filename for:', {
@@ -142,4 +202,9 @@ const uploadToS3 = async (req, res, next) => {
     }
 };
 
-module.exports = { upload, uploadToS3 };
+module.exports = { 
+    upload, 
+    uploadToS3,
+    eventImageUpload,
+    uploadEventImageToS3
+};

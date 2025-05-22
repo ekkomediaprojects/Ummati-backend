@@ -5,7 +5,7 @@ const User = require('../models/Users');
 const Event = require('../models/Events');
 const Payments = require('../models/Payments');
 const Membership = require('../models/Membersip');
-const { upload } = require('../middleware/s3');
+const { upload, uploadToS3, eventImageUpload, uploadEventImageToS3 } = require('../middleware/s3');
 const mongoose = require('mongoose');
 const { stripe } = require('../middleware/stripe');
 const nodemailer = require('nodemailer');
@@ -336,72 +336,78 @@ const isValidUrl = (url) => {
 // Event Management Routes
 
 // Create a new event
-router.post('/events', authenticateJWT, isAdmin, async (req, res) => {
-    try {
-        const {
-            name,
-            description,
-            quantity,
-            price,
-            imageUrl,
-            eventDate,
-            eventTypeId,
-            locationId,
-            cityId,
-            externalUrls
-        } = req.body;
+router.post('/events', 
+    authenticateJWT, 
+    isAdmin, 
+    eventImageUpload.single('image'),
+    uploadEventImageToS3,
+    async (req, res) => {
+        try {
+            const {
+                name,
+                description,
+                quantity,
+                price,
+                eventDate,
+                eventTypeId,
+                locationId,
+                cityId,
+                externalUrls
+            } = req.body;
 
-        // Validate external URLs if provided
-        if (externalUrls) {
-            const invalidUrls = [];
-            if (externalUrls.eventbrite && !isValidUrl(externalUrls.eventbrite)) {
-                invalidUrls.push('eventbrite');
-            }
-            if (externalUrls.meetup && !isValidUrl(externalUrls.meetup)) {
-                invalidUrls.push('meetup');
-            }
-            if (externalUrls.zeffy && !isValidUrl(externalUrls.zeffy)) {
-                invalidUrls.push('zeffy');
-            }
-            if (externalUrls.other && !isValidUrl(externalUrls.other)) {
-                invalidUrls.push('other');
+            // Validate external URLs if provided
+            if (externalUrls) {
+                const invalidUrls = [];
+                if (externalUrls.eventbrite && !isValidUrl(externalUrls.eventbrite)) {
+                    invalidUrls.push('eventbrite');
+                }
+                if (externalUrls.meetup && !isValidUrl(externalUrls.meetup)) {
+                    invalidUrls.push('meetup');
+                }
+                if (externalUrls.zeffy && !isValidUrl(externalUrls.zeffy)) {
+                    invalidUrls.push('zeffy');
+                }
+                if (externalUrls.other && !isValidUrl(externalUrls.other)) {
+                    invalidUrls.push('other');
+                }
+
+                if (invalidUrls.length > 0) {
+                    return res.status(400).json({
+                        success: false,
+                        message: `Invalid URLs provided for: ${invalidUrls.join(', ')}`
+                    });
+                }
             }
 
-            if (invalidUrls.length > 0) {
-                return res.status(400).json({
-                    success: false,
-                    message: `Invalid URLs provided for: ${invalidUrls.join(', ')}`
-                });
-            }
+            // Create new event
+            const event = new Event({
+                name,
+                description,
+                quantity,
+                price,
+                eventDate,
+                eventTypeId,
+                locationId,
+                cityId,
+                externalUrls,
+                imageUrl: req.file ? req.file.location : null // Add image URL if file was uploaded
+            });
+
+            await event.save();
+
+            res.status(201).json({
+                success: true,
+                data: { event }
+            });
+        } catch (error) {
+            res.status(500).json({
+                success: false,
+                message: "Error creating event",
+                error: error.message
+            });
         }
-
-        const event = new Event({
-            name,
-            description,
-            quantity,
-            price,
-            imageUrl,
-            eventDate,
-            eventTypeId,
-            locationId,
-            cityId,
-            externalUrls
-        });
-
-        await event.save();
-
-        res.status(201).json({
-            success: true,
-            data: { event }
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: "Error creating event",
-            error: error.message
-        });
     }
-});
+);
 
 // Get all events with pagination and filtering
 router.get('/events', authenticateJWT, isAdmin, async (req, res) => {
@@ -459,81 +465,93 @@ router.get('/events/:id', authenticateJWT, isAdmin, async (req, res) => {
 });
 
 // Update event
-router.put('/events/:id', authenticateJWT, isAdmin, async (req, res) => {
-    try {
-        const {
-            name,
-            description,
-            quantity,
-            price,
-            imageUrl,
-            eventDate,
-            eventTypeId,
-            locationId,
-            cityId,
-            externalUrls
-        } = req.body;
-
-        // Validate external URLs if provided
-        if (externalUrls) {
-            const invalidUrls = [];
-            if (externalUrls.eventbrite && !isValidUrl(externalUrls.eventbrite)) {
-                invalidUrls.push('eventbrite');
-            }
-            if (externalUrls.meetup && !isValidUrl(externalUrls.meetup)) {
-                invalidUrls.push('meetup');
-            }
-            if (externalUrls.zeffy && !isValidUrl(externalUrls.zeffy)) {
-                invalidUrls.push('zeffy');
-            }
-            if (externalUrls.other && !isValidUrl(externalUrls.other)) {
-                invalidUrls.push('other');
-            }
-
-            if (invalidUrls.length > 0) {
-                return res.status(400).json({
-                    success: false,
-                    message: `Invalid URLs provided for: ${invalidUrls.join(', ')}`
-                });
-            }
-        }
-
-        const event = await Event.findByIdAndUpdate(
-            req.params.id,
-            {
+router.put('/events/:id', 
+    authenticateJWT, 
+    isAdmin, 
+    eventImageUpload.single('image'),
+    uploadEventImageToS3,
+    async (req, res) => {
+        try {
+            const {
                 name,
                 description,
                 quantity,
                 price,
-                imageUrl,
                 eventDate,
                 eventTypeId,
                 locationId,
                 cityId,
                 externalUrls
-            },
-            { new: true }
-        );
+            } = req.body;
 
-        if (!event) {
-            return res.status(404).json({
+            // Validate external URLs if provided
+            if (externalUrls) {
+                const invalidUrls = [];
+                if (externalUrls.eventbrite && !isValidUrl(externalUrls.eventbrite)) {
+                    invalidUrls.push('eventbrite');
+                }
+                if (externalUrls.meetup && !isValidUrl(externalUrls.meetup)) {
+                    invalidUrls.push('meetup');
+                }
+                if (externalUrls.zeffy && !isValidUrl(externalUrls.zeffy)) {
+                    invalidUrls.push('zeffy');
+                }
+                if (externalUrls.other && !isValidUrl(externalUrls.other)) {
+                    invalidUrls.push('other');
+                }
+
+                if (invalidUrls.length > 0) {
+                    return res.status(400).json({
+                        success: false,
+                        message: `Invalid URLs provided for: ${invalidUrls.join(', ')}`
+                    });
+                }
+            }
+
+            // Prepare update object
+            const updateData = {
+                name,
+                description,
+                quantity,
+                price,
+                eventDate,
+                eventTypeId,
+                locationId,
+                cityId,
+                externalUrls
+            };
+
+            // If a new image was uploaded, add it to the update data
+            if (req.file) {
+                updateData.imageUrl = req.file.location;
+            }
+
+            const event = await Event.findByIdAndUpdate(
+                req.params.id,
+                updateData,
+                { new: true }
+            );
+
+            if (!event) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Event not found"
+                });
+            }
+
+            res.json({
+                success: true,
+                data: { event }
+            });
+        } catch (error) {
+            res.status(500).json({
                 success: false,
-                message: "Event not found"
+                message: "Error updating event",
+                error: error.message
             });
         }
-
-        res.json({
-            success: true,
-            data: { event }
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: "Error updating event",
-            error: error.message
-        });
     }
-});
+);
 
 // Delete event
 router.delete('/events/:id', authenticateJWT, isAdmin, async (req, res) => {
