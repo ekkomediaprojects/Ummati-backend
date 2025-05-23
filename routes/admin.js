@@ -343,67 +343,82 @@ router.post('/events',
     uploadEventImageToS3,
     async (req, res) => {
         try {
-            const {
-                name,
-                description,
-                quantity,
-                price,
-                eventDate,
-                eventTypeId,
-                locationId,
-                cityId,
-                externalUrls
-            } = req.body;
-
-            // Validate external URLs if provided
-            if (externalUrls) {
-                const invalidUrls = [];
-                if (externalUrls.eventbrite && !isValidUrl(externalUrls.eventbrite)) {
-                    invalidUrls.push('eventbrite');
+            console.log('=== EVENT CREATION DEBUG ===');
+            console.log('1. Raw Request Body:', req.body);
+            console.log('2. File Upload:', req.file);
+            
+            // Parse JSON fields if present
+            let venue = req.body.venue;
+            let externalUrls = req.body.externalUrls;
+            
+            console.log('3. Before JSON Parse - Venue:', venue);
+            console.log('3. Before JSON Parse - ExternalUrls:', externalUrls);
+            
+            try {
+                if (typeof venue === 'string') {
+                    venue = JSON.parse(venue);
+                    console.log('4. After Venue Parse:', venue);
                 }
-                if (externalUrls.meetup && !isValidUrl(externalUrls.meetup)) {
-                    invalidUrls.push('meetup');
+                if (typeof externalUrls === 'string') {
+                    externalUrls = JSON.parse(externalUrls);
+                    console.log('4. After ExternalUrls Parse:', externalUrls);
                 }
-                if (externalUrls.zeffy && !isValidUrl(externalUrls.zeffy)) {
-                    invalidUrls.push('zeffy');
-                }
-                if (externalUrls.other && !isValidUrl(externalUrls.other)) {
-                    invalidUrls.push('other');
-                }
-
-                if (invalidUrls.length > 0) {
-                    return res.status(400).json({
-                        success: false,
-                        message: `Invalid URLs provided for: ${invalidUrls.join(', ')}`
-                    });
-                }
+            } catch (parseError) {
+                console.error('JSON Parse Error:', parseError);
             }
+
+            // Log all fields that will be used to create the event
+            console.log('5. Event Creation Fields:', {
+                eventId: req.body.eventId,
+                name: req.body.name,
+                description: req.body.description,
+                start: req.body.start,
+                end: req.body.end,
+                venue: venue,
+                externalUrls: externalUrls,
+                imageUrl: req.file ? req.file.location : null
+            });
 
             // Create new event
             const event = new Event({
-                name,
-                description,
-                quantity,
-                price,
-                eventDate,
-                eventTypeId,
-                locationId,
-                cityId,
-                externalUrls,
-                imageUrl: req.file ? req.file.location : null // Add image URL if file was uploaded
+                eventId: req.body.eventId,
+                name: req.body.name,
+                description: req.body.description,
+                start: req.body.start,
+                end: req.body.end,
+                venue: venue,
+                externalUrls: externalUrls,
+                imageUrl: req.file ? req.file.location : null
             });
 
+            console.log('6. Event Object Before Save:', event);
+
+            // Validate the event object
+            const validationError = event.validateSync();
+            if (validationError) {
+                console.error('7. Validation Error:', validationError);
+                return res.status(400).json({
+                    success: false,
+                    message: "Validation Error",
+                    error: validationError.message,
+                    details: validationError.errors
+                });
+            }
+
             await event.save();
+            console.log('8. Event Saved Successfully');
 
             res.status(201).json({
                 success: true,
                 data: { event }
             });
         } catch (error) {
+            console.error('9. Error in Event Creation:', error);
             res.status(500).json({
                 success: false,
                 message: "Error creating event",
-                error: error.message
+                error: error.message,
+                stack: error.stack
             });
         }
     }
