@@ -181,6 +181,54 @@ router.put('/users/:id', authenticateJWT, isAdmin, async (req, res) => {
     }
 });
 
+// Delete user
+router.delete('/users/:id', authenticateJWT, isAdmin, async (req, res) => {
+    try {
+        // Prevent deleting the last admin
+        const userToDelete = await User.findById(req.params.id);
+        if (!userToDelete) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        // Check if user is an admin
+        if (userToDelete.role === 'admin') {
+            // Count total admins
+            const adminCount = await User.countDocuments({ role: 'admin' });
+            if (adminCount <= 1) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Cannot delete the last admin user"
+                });
+            }
+        }
+
+        // Delete user's associated data
+        await Promise.all([
+            // Delete user's payments
+            Payments.deleteMany({ userId: req.params.id }),
+            // Delete user's memberships
+            Membership.deleteMany({ userId: req.params.id })
+        ]);
+
+        // Delete the user
+        await User.findByIdAndDelete(req.params.id);
+
+        res.json({
+            success: true,
+            message: "User and associated data deleted successfully"
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Error deleting user",
+            error: error.message
+        });
+    }
+});
+
 // Get payment statistics
 router.get('/payments/stats', authenticateJWT, isAdmin, async (req, res) => {
     try {
