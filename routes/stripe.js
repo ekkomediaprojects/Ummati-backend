@@ -8,6 +8,8 @@ const MembershipTier = require('../models/MembershipTier');
 const User = require('../models/Users');
 const Payments = require('../models/Payments');
 
+console.log('stripe.js loaded');
+
 // Create a subscription
 router.post('/create-subscription', authenticateJWT, async (req, res) => {
     try {
@@ -37,6 +39,16 @@ router.post('/create-subscription', authenticateJWT, async (req, res) => {
             });
 
             await membership.save();
+
+            // Deactivate any existing active free membership for this user
+            const freeTier = await MembershipTier.findOne({ price: 0 });
+            if (freeTier) {
+                await Membership.updateMany(
+                    { userId, status: 'Active', membershipTierId: freeTier._id },
+                    { $set: { status: 'Cancelled' } }
+                );
+            }
+
             return res.status(200).json({ membership });
         }
 
@@ -47,9 +59,7 @@ router.post('/create-subscription', authenticateJWT, async (req, res) => {
                 email: user.email,
                 name: `${user.firstName} ${user.lastName}`,
                 invoice_settings: {
-                    default_payment_method: null,
-                    email: user.email,
-                    email_receipts: true  // This ensures receipt emails
+                    default_payment_method: null
                 }
             });
             stripeCustomerId = customer.id;
@@ -80,6 +90,15 @@ router.post('/create-subscription', authenticateJWT, async (req, res) => {
         });
 
         await membership.save();
+
+        // Deactivate any existing active free membership for this user
+        const freeTier = await MembershipTier.findOne({ price: 0 });
+        if (freeTier) {
+            await Membership.updateMany(
+                { userId, status: 'Active', membershipTierId: freeTier._id },
+                { $set: { status: 'Cancelled' } }
+            );
+        }
 
         // Send welcome email with receipt for new subscriptions
         if (tier.price > 0) {
@@ -254,9 +273,7 @@ router.post('/update-payment-method', authenticateJWT, async (req, res) => {
         // Update payment method in Stripe
         await stripe.customers.update(user.stripeCustomerId, {
             invoice_settings: {
-                default_payment_method: newPaymentMethodId,
-                email: user.email,
-                email_receipts: true  // This ensures receipt emails
+                default_payment_method: newPaymentMethodId
             },
         });
 
@@ -622,9 +639,11 @@ router.get('/membership-status', authenticateJWT, async (req, res) => {
     try {
         const userId = req.user.id;
         
-        // Get user's current membership with tier details
-        const membership = await Membership.findOne({ userId, status: 'Active' })
-            .populate('membershipTierId');
+        // Get user's most relevant membership (paid or free) based on status
+        const membership = await Membership.findOne({
+            userId,
+            status: { $in: ['Active', 'Unpaid', 'incomplete'] }
+        }).sort({ currentPeriodEnd: -1 }).populate('membershipTierId');
 
         if (!membership) {
             return res.status(404).json({ error: 'No active membership found' });
@@ -649,6 +668,130 @@ router.get('/membership-tiers', async (req, res) => {
         res.status(200).json(tiers);
     } catch (error) {
         console.error('Error fetching membership tiers:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Test Stripe connection
+router.get('/test-connection', authenticateJWT, async (req, res) => {
+    try {
+        console.log('Testing Stripe connection...');
+        
+        // Test 1: List products
+        const products = await stripe.products.list({ limit: 5 });
+        console.log('Available products:', products.data);
+        
+        // Test 2: List prices
+        const prices = await stripe.prices.list({ limit: 5 });
+        console.log('Available prices:', prices.data);
+        
+        // Test 3: Get account balance
+        const balance = await stripe.balance.retrieve();
+        console.log('Account balance:', balance);
+
+        res.json({
+            success: true,
+            message: 'Stripe connection successful',
+            data: {
+                products: products.data,
+                prices: prices.data,
+                balance: balance
+            }
+        });
+    } catch (error) {
+        console.error('Stripe connection test failed:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Stripe connection test failed',
+            error: error.message
+        });
+    }
+});
+
+// Create membership tier
+router.post('/membership-tiers', authenticateJWT, async (req, res) => {
+    console.log('POST /stripe/membership-tiers hit');
+    console.log('Request body:', req.body);
+    try {
+        const { name, price, stripePriceId, stripeProductId, benefits, interval } = req.body;
+
+        // Create new membership tier
+        const tier = new MembershipTier({
+            name,
+            price,
+            stripePriceId,
+            stripeProductId,
+            benefits,
+            interval
+        });
+
+        await tier.save();
+        console.log('Membership tier saved:', tier);
+
+        res.status(201).json({
+            message: 'Membership tier created successfully',
+            tier
+        });
+    } catch (error) {
+        console.error('Error creating membership tier:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Upgrade to premium membership
+router.post('/upgrade-membership', authenticateJWT, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const user = await User.findById(userId);
+        
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Get the premium tier
+        const premiumTier = await MembershipTier.findOne({ price: 20 });
+        if (!premiumTier) {
+            return res.status(404).json({ error: 'Premium membership tier not found' });
+        }
+
+        // Create or get Stripe customer
+        let customer;
+        if (user.stripeCustomerId) {
+            customer = await stripe.customers.retrieve(user.stripeCustomerId);
+        } else {
+            customer = await stripe.customers.create({
+                email: user.email,
+                name: `${user.firstName} ${user.lastName}`,
+                metadata: {
+                    userId: user._id.toString()
+                }
+            });
+            user.stripeCustomerId = customer.id;
+        }
+
+        // Create subscription
+        const subscription = await stripe.subscriptions.create({
+            customer: customer.id,
+            items: [{ price: premiumTier.stripePriceId }],
+            payment_behavior: 'default_incomplete',
+            payment_settings: { save_default_payment_method: 'on_subscription' },
+            expand: ['latest_invoice.payment_intent'],
+        });
+
+        // Update user with subscription ID and tier
+        user.stripeSubscriptionId = subscription.id;
+        user.membershipTier = premiumTier._id;
+        await user.save();
+
+        // Return client secret for payment completion
+        res.json({
+            subscriptionId: subscription.id,
+            clientSecret: subscription.latest_invoice.payment_intent.client_secret,
+            membershipTier: premiumTier
+        });
+
+    } catch (error) {
+        console.error('Error upgrading membership:', error);
         res.status(500).json({ error: error.message });
     }
 });

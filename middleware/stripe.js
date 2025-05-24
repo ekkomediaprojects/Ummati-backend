@@ -5,12 +5,7 @@ const createStripeCustomer = async (email, name) => {
     try {
         const customer = await stripe.customers.create({
             email,
-            name,
-            invoice_settings: {
-                default_payment_method: null,
-                email: email, // Explicitly set email for receipts
-                email_receipts: true // Explicitly enable email receipts
-            }
+            name
         });
         return customer;
     } catch (error) {
@@ -32,14 +27,10 @@ const createStripeSubscription = async (customerId, priceId, paymentMethodId, em
                 },
                 billing_details: {
                     name: 'Test User',
-                    email: email, // Use the actual email
+                    email: email,
                 },
             });
             paymentMethodId = paymentMethod.id;
-        } else {
-            // For real payment methods, we assume the paymentMethodId is already a valid Stripe payment method ID
-            // that was created on the client side using Stripe Elements or Stripe.js
-            console.log('Using provided payment method:', paymentMethodId);
         }
 
         // Attach payment method to customer
@@ -47,28 +38,20 @@ const createStripeSubscription = async (customerId, priceId, paymentMethodId, em
             customer: customerId,
         });
 
-        // Set as default payment method and ensure email receipts are enabled
+        // Set as default payment method
         await stripe.customers.update(customerId, {
             invoice_settings: {
                 default_payment_method: paymentMethodId,
-                email: email,
-                email_receipts: true
             },
         });
 
-        // Create subscription with email receipt settings
+        // Create subscription
         const subscription = await stripe.subscriptions.create({
             customer: customerId,
             items: [{ price: priceId }],
             payment_behavior: 'default_incomplete',
             payment_settings: { save_default_payment_method: 'on_subscription' },
             expand: ['latest_invoice.payment_intent'],
-            metadata: {
-                email: email
-            },
-            receipt_settings: {
-                email_receipts: true
-            }
         });
 
         return subscription;

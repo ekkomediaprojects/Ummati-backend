@@ -13,6 +13,7 @@ const app = express();
 // Middleware
 //app.use(helmet()); // Adds security headers
 app.use(cors()); // Enables CORS
+app.use(express.json()); // JSON parsing for all routes
 
 // Import Routes
 const userRoutes = require('./routes/users.js');
@@ -28,7 +29,6 @@ const adminRoutes = require('./routes/admin.js');
 
 // Use Routes
 app.use('/stripe', stripeRoutes); // Stripe routes first (needs raw body)
-app.use(express.json()); // JSON parsing for other routes
 app.use('/users', userRoutes);
 app.use('/auth', authRoutes);
 app.use('/contactUs', contactUs);

@@ -20,7 +20,9 @@ const membershipSchema = new mongoose.Schema({
     refundReason: { 
         type: String, 
         enum: ['duplicate', 'fraudulent', 'requested_by_customer'],
-        default: 'requested_by_customer'
+        required: function() {
+            return this.status === 'Refunded'; // Only required if status is Refunded
+        }
     }
 });
 

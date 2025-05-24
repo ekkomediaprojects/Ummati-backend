@@ -15,6 +15,12 @@ const usersSchema = new mongoose.Schema({
     postalCode: { type: String, default: null },
     phoneNumber: { type: String, default: null },
     stripeCustomerId: { type: String, unique: true, sparse: true }, // Stripe Customer ID
+    stripeSubscriptionId: { type: String, unique: true, sparse: true }, // Stripe Subscription ID
+    membershipTier: { 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'MembershipTier',
+        default: '67d7a9c6c228032e59fce83c' // Default to Free Member tier
+    },
     role: { type: String, enum: ['user', 'admin'], default: 'user' },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now },
