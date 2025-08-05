@@ -200,7 +200,7 @@ router.put('/reset-password/:token', async (req, res) => {
 });       
 
 // **Upload Image to S3 (No Authentication)**
-router.post('/upload-image', upload.single('image'), uploadToS3, async (req, res) => {
+router.post('/upload-image', upload.single('image'),authenticateJWT,  uploadToS3, async (req, res) => {
     try {
         console.log('Request received for /upload-image');
 
@@ -229,7 +229,7 @@ router.post('/upload-image', upload.single('image'), uploadToS3, async (req, res
 });
 
 // **Upload Profile Picture**
-router.put('/profile-picture', authenticateJWT, upload.single('profilePicture'), uploadToS3, async (req, res) => {
+router.put('/profile-picture', authenticateJWT, async (req, res) => {
     console.log('=== PROFILE PICTURE ROUTE HANDLER START ===');
     console.log('Request details:', {
         user: req.user,
@@ -243,19 +243,19 @@ router.put('/profile-picture', authenticateJWT, upload.single('profilePicture'),
         const { id } = req.user;
         console.log('User ID:', id);
 
-        console.log('Checking if file exists...');
-        if (!req.file) {
-            console.log('No file found in request');
-            return res.status(400).json({ message: 'No file uploaded' });
-        }
+        // console.log('Checking if file exists...');
+        // if (!req.file) {
+        //     console.log('No file found in request');
+        //     return res.status(400).json({ message: 'No file uploaded' });
+        // }
 
-        console.log('Checking if file location exists...');
-        if (!req.file.location) {
-            console.error('S3 upload failed - no location returned');
-            return res.status(500).json({ message: 'Failed to upload image to S3' });
-        }
+        // console.log('Checking if file location exists...');
+        // if (!req.file.location) {
+        //     console.error('S3 upload failed - no location returned');
+        //     return res.status(500).json({ message: 'Failed to upload image to S3' });
+        // }
 
-        const profilePictureUrl = req.file.location;
+        const profilePictureUrl = req?.body?.profilePicture;
         console.log('Profile picture URL:', profilePictureUrl);
 
         console.log('Updating user in database...');
