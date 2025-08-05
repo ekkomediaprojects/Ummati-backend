@@ -26,15 +26,15 @@ const authenticateJWT = async (req, res, next) => {
         }
 
         console.log('Verifying JWT token...');
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        console.log('Token decoded successfully:', {
-            id: decoded.id,
-            iat: decoded.iat,
-            exp: decoded.exp
-        });
+        let decoded;
+        try{
+             decoded = jwt.verify(token, process.env.JWT_SECRET);
+        } catch (error){
+            return res.status(401).json({ message: 'Token expired' });
+        }
 
         console.log('Fetching user from database...');
-        const user = await User.findById(decoded.id);
+        const user = await User.findById(decoded?.id);
         console.log('User found:', user ? 'Yes' : 'No');
         
         if (!user) {

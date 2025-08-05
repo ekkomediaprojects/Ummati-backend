@@ -110,13 +110,13 @@ const getMemberDetails = async (code) => {
         console.log('Active membership found:', activeMembership ? 'Yes' : 'No');
 
         // Get membership tier details
-        let membershipTier = null;
+        let membershipTier = {};
         if (activeMembership && activeMembership.membershipTierId) {
             membershipTier = {
-                name: activeMembership.membershipTierId.name,
-                price: activeMembership.membershipTierId.price,
-                benefits: activeMembership.membershipTierId.benefits,
-                interval: activeMembership.membershipTierId.interval
+                name: activeMembership?.membershipTierId?.name,
+                price: activeMembership?.membershipTierId?.price,
+                benefits: activeMembership?.membershipTierId?.benefits,
+                interval: activeMembership?.membershipTierId?.interval
             };
             console.log('Membership tier details:', membershipTier);
         }

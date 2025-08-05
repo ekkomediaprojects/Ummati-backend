@@ -41,7 +41,7 @@ router.get('/verify/:code', async function(req, res) {
         
         // If location capture is requested, return HTML with location capture script
         if (captureLocation === 'true') {
-            console.log('Sending location capture HTML for code:', code);
+        console.log('Sending location capture HTML for code:', code);
             const html = `
                 <!DOCTYPE html>
                 <html>
@@ -269,21 +269,23 @@ router.get('/verify/:code', async function(req, res) {
                                 const response = await fetch('/qr/verify/' + code);
                                 const data = await response.json();
                                 log('Member details response: ' + JSON.stringify(data));
-                                
                                 if (data.status === 'success') {
+                                    const user = data.user || {};
+                                    log('user: ' + JSON.stringify(user || null));
                                     // Update profile picture
                                     const profilePicture = document.getElementById('profilePicture');
-                                    profilePicture.src = data.user.profilePicture || 'https://api.ummaticommunity.com/images/default-profile.png';
-                                    
+                                    profilePicture.src = user.profilePicture || 'https://api.ummaticommunity.com/images/default-profile.png';
+
                                     // Update member name
-                                    document.getElementById('memberName').textContent = data.user.name;
-                                    
-                                    // Update membership tier
-                                    document.getElementById('membershipTier').textContent = data.user.membershipTier.name;
-                                    
-                                    // Update benefits list
+                                    document.getElementById('memberName').textContent = user.name || 'Unnamed';
+
+                                    // Update membership tier safely
+                                    document.getElementById('membershipTier').textContent =
+                                        user?.membershipTier?.name || 'No Tier Assigned';
+
+                                    // Update benefits list safely
                                     const benefitsList = document.getElementById('benefitsList');
-                                    benefitsList.innerHTML = data.user.membershipTier.benefits
+                                    benefitsList.innerHTML = (user?.membershipTier?.benefits || [])
                                         .map(benefit => \`<li>\${benefit}</li>\`)
                                         .join('');
                                     
