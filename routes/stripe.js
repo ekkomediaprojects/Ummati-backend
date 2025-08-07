@@ -9,7 +9,6 @@ const User = require('../models/Users');
 const Payments = require('../models/Payments');
 
 console.log('stripe.js loaded');
-
 // Create a subscription
 router.post('/create-subscription', authenticateJWT, async (req, res) => {
     try {
@@ -138,7 +137,6 @@ router.post('/cancel-subscription', authenticateJWT, async (req, res) => {
     try {
         const userId = req.user.id;
         const membership = await Membership.findOne({ userId, status: 'Active' });
-
         if (!membership) {
             return res.status(404).json({ error: 'Active membership not found' });
         }
@@ -651,9 +649,9 @@ router.get('/membership-status', authenticateJWT, async (req, res) => {
 
         res.status(200).json({
             membership,
-            isPaidMember: membership.membershipTierId.price > 0,
-            benefits: membership.membershipTierId.benefits,
-            currentPeriodEnd: membership.currentPeriodEnd
+            isPaidMember: membership?.membershipTierId?.price > 0,
+            benefits: membership?.membershipTierId?.benefits,
+            currentPeriodEnd: membership?.currentPeriodEnd
         });
     } catch (error) {
         console.error('Error fetching membership status:', error);
