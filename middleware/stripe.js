@@ -61,13 +61,15 @@ const createStripeSubscription = async (customerId, priceId, paymentMethodId, em
     }
 };
 
-// Cancel a subscription in Stripe
-const cancelStripeSubscription = async (subscriptionId) => {
+// Gracefully cancel a subscription at end of billing cycle
+const cancelStripeSubscription = async (subscriptionId , cancel_at_period_end) => {
     try {
-        const subscription = await stripe.subscriptions.cancel(subscriptionId);
+        const subscription = await stripe.subscriptions.update(subscriptionId, {
+            cancel_at_period_end: cancel_at_period_end
+        });
         return subscription;
     } catch (error) {
-        console.error('Error canceling Stripe subscription:', error);
+        console.error('Error setting cancel_at_period_end on Stripe subscription:', error);
         throw error;
     }
 };

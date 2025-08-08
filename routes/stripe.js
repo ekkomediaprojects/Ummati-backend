@@ -51,81 +51,114 @@ router.post('/create-subscription', authenticateJWT, async (req, res) => {
             return res.status(200).json({ membership });
         }
 
-        // Handle paid membership
-        let stripeCustomerId = user.stripeCustomerId;
-        if (!stripeCustomerId) {
-            const customer = await stripe.customers.create({
-                email: user.email,
-                name: `${user.firstName} ${user.lastName}`,
-                invoice_settings: {
-                    default_payment_method: null
-                }
-            });
-            stripeCustomerId = customer.id;
-            user.stripeCustomerId = stripeCustomerId;
-            await user.save();
-        }
-
-        // Create Stripe subscription
-        const subscription = await createStripeSubscription(
-            stripeCustomerId,
-            tier.stripePriceId,
-            paymentMethodId,
-            user.email
-        );
-
-        // Create membership record
-        const membership = new Membership({
+        const existingMembership = await Membership.findOne({
             userId,
-            membershipTierId: tierId,
-            stripeCustomerId,
-            stripeSubscriptionId: subscription.id,
-            startDate: new Date(),
-            currentPeriodStart: new Date(subscription.current_period_start * 1000),
-            currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-            status: ['active', 'trialing'].includes(subscription.status) ? 'Active' : 'Unpaid',
-            lastPaymentStatus: subscription.status,
-            lastPaymentDate: new Date(),
-        });
+            status: 'Active',
+            stripeSubscriptionId: { $ne: null },
+            cancelAtPeriodEnd: true, // You already track this in your DB
+        }).sort({ currentPeriodEnd: -1 });
 
-        await membership.save();
+        if(existingMembership){
+            if (existingMembership) {
+                // Resume the subscription on Stripe
+                let resumedSubscription = null
+                if (existingMembership.stripeSubscriptionId) {
+                    resumedSubscription =  await cancelStripeSubscription(existingMembership.stripeSubscriptionId, false);
+                }
+                // Update DB
+                existingMembership.cancelAtPeriodEnd = false;
+                existingMembership.membershipTierId = tierId; // optional, if user chose different tier
+                await existingMembership.save();
 
-        // Deactivate any existing active free membership for this user
-        const freeTier = await MembershipTier.findOne({ price: 0 });
-        if (freeTier) {
-            await Membership.updateMany(
-                { userId, status: 'Active', membershipTierId: freeTier._id },
-                { $set: { status: 'Cancelled' } }
+                return res.status(200).json({
+                    subscriptionId: resumedSubscription?.id,
+                    clientSecret: resumedSubscription?.latest_invoice?.payment_intent?.client_secret || null,
+                    membership: existingMembership,
+                    resumed: true
+                });
+            }
+        } else {
+            // Handle paid membership
+            let stripeCustomerId = user.stripeCustomerId;
+            if (!stripeCustomerId) {
+                const customer = await stripe.customers.create({
+                    email: user.email,
+                    name: `${user.firstName} ${user.lastName}`,
+                    invoice_settings: {
+                        default_payment_method: null
+                    }
+                });
+                stripeCustomerId = customer.id;
+                user.stripeCustomerId = stripeCustomerId;
+                await user.save();
+            }
+
+            // Create Stripe subscription
+            const subscription = await createStripeSubscription(
+                stripeCustomerId,
+                tier.stripePriceId,
+                paymentMethodId,
+                user.email
             );
+
+            await Membership.updateMany({userId}, { $set: { status: 'Cancelled' }});
+            // Create membership record
+            const membership = new Membership({
+                userId,
+                membershipTierId: tierId,
+                stripeCustomerId,
+                stripeSubscriptionId: subscription.id,
+                startDate: new Date(),
+                currentPeriodStart: new Date(subscription.current_period_start * 1000),
+                currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+                status: ['active', 'trialing'].includes(subscription.status) ? 'Active' : 'Unpaid',
+                lastPaymentStatus: subscription.status,
+                lastPaymentDate: new Date(),
+            });
+
+            await membership.save();
+
+
+            // Deactivate any existing active free membership for this user
+            const freeTier = await MembershipTier.findOne({ price: 0 });
+            if (freeTier) {
+                await Membership.updateMany(
+                    { userId, status: 'Active', membershipTierId: freeTier._id },
+                    { $set: { status: 'Cancelled' } }
+                );
+            }
+
+            // Send welcome email with receipt for new subscriptions
+            if (tier.price > 0) {
+                const mailOptions = {
+                    from: process.env.EMAIL,
+                    to: user.email,
+                    subject: 'Welcome to Premium Membership!',
+                    text: `Dear ${user.firstName},\n\nThank you for subscribing to our premium membership! 
+                    Your payment has been processed successfully.\n\n
+                    Membership Details:\n
+                    - Tier: ${tier.name}\n
+                    - Amount: $${tier.price}\n
+                    - Billing Period: ${tier.interval}\n
+                    - Start Date: ${membership.currentPeriodStart.toLocaleDateString()}\n
+                    - End Date: ${membership.currentPeriodEnd.toLocaleDateString()}\n\n
+                    You now have access to all premium benefits:\n${tier.benefits.join('\n')}\n\n
+                    Thank you for your support!\n\n
+                    Best regards,\nUmmati Community`
+                };
+
+                await transporter.sendMail(mailOptions);
+            }
+
+            res.status(200).json({
+                subscriptionId: subscription.id,
+                clientSecret: subscription.latest_invoice.payment_intent.client_secret,
+                membership,
+            });
+
         }
 
-        // Send welcome email with receipt for new subscriptions
-        if (tier.price > 0) {
-            const mailOptions = {
-                from: process.env.EMAIL,
-                to: user.email,
-                subject: 'Welcome to Premium Membership!',
-                text: `Dear ${user.firstName},\n\nThank you for subscribing to our premium membership! 
-                Your payment has been processed successfully.\n\n
-                Membership Details:\n
-                - Tier: ${tier.name}\n
-                - Amount: $${tier.price}\n
-                - Billing Period: ${tier.interval}\n
-                - Start Date: ${membership.currentPeriodStart.toLocaleDateString()}\n
-                - End Date: ${membership.currentPeriodEnd.toLocaleDateString()}\n\n
-                You now have access to all premium benefits:\n${tier.benefits.join('\n')}\n\n
-                Thank you for your support!\n\n
-                Best regards,\nUmmati Community`
-            };
 
-            await transporter.sendMail(mailOptions);
-        }
-
-        res.status(200).json({
-            subscriptionId: subscription.id,
-            clientSecret: subscription.latest_invoice.payment_intent.client_secret,
-            membership,
-        });
     } catch (error) {
         console.error('Error creating subscription:', error);
         res.status(500).json({ error: error.message });
@@ -136,7 +169,7 @@ router.post('/create-subscription', authenticateJWT, async (req, res) => {
 router.post('/cancel-subscription', authenticateJWT, async (req, res) => {
     try {
         const userId = req.user.id;
-        const membership = await Membership.findOne({ userId, status: 'Active' });
+        const membership = await Membership.findOne({ userId, status: 'Active' }).sort({ currentPeriodEnd: -1 });
         if (!membership) {
             return res.status(404).json({ error: 'Active membership not found' });
         }
@@ -149,17 +182,18 @@ router.post('/cancel-subscription', authenticateJWT, async (req, res) => {
 
         // If it's a paid membership, cancel the Stripe subscription
         if (membership.stripeSubscriptionId) {
-            await cancelStripeSubscription(membership.stripeSubscriptionId);
+            await cancelStripeSubscription(membership.stripeSubscriptionId, true);
         }
 
         // Update membership to free tier
-        membership.membershipTierId = freeTier._id;
+        // membership.membershipTierId = freeTier._id;
         membership.status = 'Active';
-        membership.stripeCustomerId = null;
-        membership.stripeSubscriptionId = null;
-        membership.currentPeriodStart = new Date();
-        membership.currentPeriodEnd = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000); // 1 year from now
-        membership.cancelAtPeriodEnd = false;
+        // membership.stripeCustomerId = null;
+        // membership.stripeSubscriptionId = null;
+        // membership.currentPeriodStart = new Date();
+        // membership.currentPeriodEnd = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000); // 1 year from now
+        membership.cancelAtPeriodEnd = true;
+        console.log("memvbership" , membership)
         await membership.save();
 
         res.status(200).json({ 
@@ -450,7 +484,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
                 const subscription = event.data.object;
                 const membership = await Membership.findOne({
                     stripeSubscriptionId: subscription.id,
-                });
+                }).sort({ currentPeriodEnd: -1 });
 
                 if (membership) {
                     // Save subscription update transaction
