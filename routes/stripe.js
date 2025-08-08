@@ -83,7 +83,7 @@ router.post('/create-subscription', authenticateJWT, async (req, res) => {
             startDate: new Date(),
             currentPeriodStart: new Date(subscription.current_period_start * 1000),
             currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-            status: subscription.status === 'active' ? 'Active' : 'Unpaid',
+            status: ['active', 'trialing'].includes(subscription.status) ? 'Active' : 'Unpaid',
             lastPaymentStatus: subscription.status,
             lastPaymentDate: new Date(),
         });
