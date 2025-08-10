@@ -63,6 +63,11 @@ app.get('/', (req, res) => {
     res.send('Welcome to the Ummati Backend!');
 });
 
+// change on every deployment from package.json
+app.get('/deployment', (req, res) => {
+    res.send(`Deployment Version: ${process.env.npm_package_version}`);
+});
+
 // Catch-All Route
 app.all('*', (req, res) => {
     res.status(404).json({ message: 'Route not found' });
