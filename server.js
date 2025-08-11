@@ -6,6 +6,8 @@ const cors = require('cors');
 //const helmet = require('helmet');
 const { initializeStripeServices } = require('./services/stripeMembershipService');
 const { cleanupExpiredQRCodes } = require('./services/qrCodeService');
+const bodyParser = require('body-parser');
+
 
 // Import Routes
 const userRoutes = require('./routes/users.js');
@@ -25,14 +27,13 @@ const app = express();
 // Middleware
 //app.use(helmet()); // Adds security headers
 app.use(cors()); // Enables CORS
-
-app.use('/stripe', stripeRoutes); // Stripe routes first (needs raw body)
-
 app.use(express.urlencoded({ extended: true }));
+app.use('/stripe/webhook', bodyParser.raw({ type: 'application/json' }));
 app.use(express.json()); // JSON parsing for all routes
 
 
 // Use Routes
+app.use('/stripe', stripeRoutes); // Stripe routes first (needs raw body)
 app.use('/users', userRoutes);
 app.use('/auth', authRoutes);
 app.use('/contactUs', contactUs);
