@@ -413,6 +413,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
             case 'charge.succeeded':
                 const charge = event.data.object;
                 const user = await User.findOne({ stripeCustomerId: charge.customer });
+                console.log("stripe , testing" , charge)
                 if (user) {
                     const payment = new Payments({
                         userId: user._id,
