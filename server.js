@@ -7,14 +7,6 @@ const cors = require('cors');
 const { initializeStripeServices } = require('./services/stripeMembershipService');
 const { cleanupExpiredQRCodes } = require('./services/qrCodeService');
 
-// Initialize Express
-const app = express();
-
-// Middleware
-//app.use(helmet()); // Adds security headers
-app.use(cors()); // Enables CORS
-app.use(express.json()); // JSON parsing for all routes
-
 // Import Routes
 const userRoutes = require('./routes/users.js');
 const authRoutes = require('./routes/auth.js');
@@ -27,8 +19,20 @@ const qrCodeRoutes = require('./routes/qrCode');
 const paymentRoutes = require('./routes/payments');
 const adminRoutes = require('./routes/admin.js');
 
-// Use Routes
+// Initialize Express
+const app = express();
+
+// Middleware
+//app.use(helmet()); // Adds security headers
+app.use(cors()); // Enables CORS
+
 app.use('/stripe', stripeRoutes); // Stripe routes first (needs raw body)
+
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json()); // JSON parsing for all routes
+
+
+// Use Routes
 app.use('/users', userRoutes);
 app.use('/auth', authRoutes);
 app.use('/contactUs', contactUs);
@@ -65,7 +69,7 @@ app.get('/', (req, res) => {
 
 // change on every deployment from package.json
 app.get('/deployment', (req, res) => {
-    res.send(`Deployment Version: ${process.env.npm_package_version}`);
+    res.send(`Deployment Version:  1.2.0`);
 });
 
 // Catch-All Route

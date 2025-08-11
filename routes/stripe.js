@@ -393,7 +393,8 @@ router.post('/refund', authenticateJWT, async (req, res) => {
 router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
     const sig = req.headers['stripe-signature'];
     let event;
-
+    console.log('Type of req.body:', typeof req.body);
+    console.log('Is Buffer?', req.body);
     try {
         event = stripe.webhooks.constructEvent(
             req.body,
@@ -405,6 +406,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         console.error('Webhook signature verification failed:', err.message);
         return res.status(400).send(`Webhook Error: ${err.message}`);
     }
+    console.log("event", event)
 
     try {
         switch (event.type) {
