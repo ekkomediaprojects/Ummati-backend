@@ -6,10 +6,7 @@ const mongoose = require('mongoose'); // Import mongoose
 router.get("/", async (req, res) => {
     try {
         const events = await Event.find(); // Fetch events from MongoDB
-        res.json({
-            success: true,
-            data: events
-        });
+        res.json(events); // Return events array directly for frontend compatibility
     } catch (error) {
         console.error("Error fetching events:", error);
         res.status(500).json({
