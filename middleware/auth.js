@@ -15,22 +15,44 @@ const authenticateJWT = async (req, res, next) => {
         
         if (!token) {
             console.log('No token found in Authorization header');
-            return res.status(401).json({ message: 'No token provided' });
+            return res.status(401).json({ 
+                success: false,
+                message: 'No token provided',
+                error: 'Authentication required'
+            });
         }
 
         console.log('Checking if token is blacklisted...');
         const isBlacklisted = await isTokenBlacklisted(token);
         if (isBlacklisted) {
             console.log('Token is blacklisted');
-            return res.status(401).json({ message: 'Token has been invalidated' });
+            return res.status(401).json({ 
+                success: false,
+                message: 'Token has been invalidated',
+                error: 'Please login again'
+            });
         }
 
         console.log('Verifying JWT token...');
         let decoded;
-        try{
-             decoded = jwt.verify(token, process.env.JWT_SECRET);
-        } catch (error){
-            return res.status(401).json({ message: 'Token expired' });
+        try {
+            decoded = jwt.verify(token, process.env.JWT_SECRET);
+        } catch (error) {
+            if (error.name === 'TokenExpiredError') {
+                return res.status(401).json({ 
+                    success: false,
+                    message: 'Token expired',
+                    error: 'Please login again to continue'
+                });
+            }
+            if (error.name === 'JsonWebTokenError') {
+                return res.status(401).json({ 
+                    success: false,
+                    message: 'Invalid token',
+                    error: 'Authentication failed'
+                });
+            }
+            throw error;
         }
 
         console.log('Fetching user from database...');
@@ -39,7 +61,20 @@ const authenticateJWT = async (req, res, next) => {
         
         if (!user) {
             console.log('User not found in database');
-            return res.status(401).json({ message: 'User not found' });
+            return res.status(401).json({ 
+                success: false,
+                message: 'User not found',
+                error: 'Account may have been deleted'
+            });
+        }
+
+        // Check if user account is active
+        if (user.status === 'inactive' || user.isDeleted) {
+            return res.status(401).json({
+                success: false,
+                message: 'Account is inactive',
+                error: 'Please contact support'
+            });
         }
 
         console.log('Attaching user to request:', {
@@ -62,13 +97,38 @@ const authenticateJWT = async (req, res, next) => {
         next();
     } catch (error) {
         console.error('Authentication error:', error);
+        
+        // Handle specific JWT errors
         if (error.name === 'JsonWebTokenError') {
-            return res.status(401).json({ message: 'Invalid token' });
+            return res.status(401).json({ 
+                success: false,
+                message: 'Invalid token',
+                error: 'Authentication failed'
+            });
         }
         if (error.name === 'TokenExpiredError') {
-            return res.status(401).json({ message: 'Token expired' });
+            return res.status(401).json({ 
+                success: false,
+                message: 'Token expired',
+                error: 'Please login again to continue'
+            });
         }
-        return res.status(500).json({ message: 'Server error', error: error.message });
+        
+        // Handle database errors
+        if (error.name === 'MongoError' || error.name === 'MongoServerError') {
+            return res.status(500).json({ 
+                success: false,
+                message: 'Database error',
+                error: 'Internal server error'
+            });
+        }
+        
+        // Generic error
+        return res.status(500).json({ 
+            success: false,
+            message: 'Server error',
+            error: 'Internal server error'
+        });
     }
 };
 

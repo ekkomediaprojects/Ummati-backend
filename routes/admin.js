@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateJWT } = require('../middleware/auth');
+const { handlePreflight } = require('../middleware/cors');
 const User = require('../models/Users');
 const Event = require('../models/Events');
 const Payments = require('../models/Payments');
@@ -10,6 +11,9 @@ const mongoose = require('mongoose');
 const { stripe } = require('../middleware/stripe');
 const nodemailer = require('nodemailer');
 const bcrypt = require('bcrypt');
+
+// Apply CORS preflight handling to all admin routes
+router.use(handlePreflight);
 
 // Middleware to check if user is admin
 const isAdmin = async (req, res, next) => {

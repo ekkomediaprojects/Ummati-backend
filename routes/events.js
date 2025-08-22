@@ -3,18 +3,22 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose'); // Import mongoose
 
-
-
 router.get("/", async (req, res) => {
     try {
         const events = await Event.find(); // Fetch events from MongoDB
-        res.json(events);
+        res.json({
+            success: true,
+            data: events
+        });
     } catch (error) {
         console.error("Error fetching events:", error);
-        res.status(500).send("Server Error");
+        res.status(500).json({
+            success: false,
+            message: "Server Error",
+            error: error.message
+        });
     }
 });
-
 
 router.post("/reorder", async (req, res) => {
   try {
@@ -43,15 +47,18 @@ router.post("/reorder", async (req, res) => {
     await Event.insertMany(sortedEvents);
     console.log("[DEBUG] Events re-added successfully.");
 
-    res.status(200).send("Events reordered, database updated successfully.");
+    res.status(200).json({
+        success: true,
+        message: "Events reordered, database updated successfully."
+    });
   } catch (error) {
     console.error("[ERROR] Error reordering events:", error);
-    res.status(500).send({
-      message: "Error reordering events",
-      error: error.message,
+    res.status(500).json({
+        success: false,
+        message: "Error reordering events",
+        error: error.message
     });
   }
 });
-
 
 module.exports = router;
