@@ -8,13 +8,11 @@ const corsOptions = {
         
         // Add your frontend domains here
         const allowedOrigins = [
-            'http://localhost:3000',
-            'http://localhost:3001',
-            'http://localhost:5173', // Vite default
-            'https://yourfrontend.com', // Replace with your actual frontend domain
-            'https://ummati-frontend.vercel.app', // Add your Vercel domain if using
-            'https://ummati-admin.vercel.app', // Add your admin dashboard domain if different
-            'https://ummati.vercel.app' // Add your main domain if different
+            'http://localhost:3000',        // React dev server
+            'http://localhost:3001',        // Alternative dev port
+            'http://localhost:5173',        // Vite default
+            'https://ummaticommunity.com',  // Your actual frontend domain
+            'https://www.ummaticommunity.com' // With www if you use it
         ];
         
         if (allowedOrigins.indexOf(origin) !== -1) {

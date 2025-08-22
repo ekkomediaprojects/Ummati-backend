@@ -27,7 +27,7 @@ NODE_ENV=development
 AWS_ACCESS_KEY_ID=your_aws_access_key
 AWS_SECRET_ACCESS_KEY=your_aws_secret_key
 AWS_REGION=us-east-1
-AWS_S3_BUCKET=your-s3-bucket-name
+AWS_S3_BUCKET=your_s3_bucket_name
 
 # Email Configuration (if using nodemailer)
 EMAIL=your-email@gmail.com
@@ -51,9 +51,8 @@ const allowedOrigins = [
     'http://localhost:3000',        // React dev server
     'http://localhost:3001',        // Alternative dev port
     'http://localhost:5173',        // Vite default
-    'https://ummati-frontend.vercel.app',  // Your Vercel frontend
-    'https://ummati-admin.vercel.app',     // Your admin dashboard
-    'https://ummati.vercel.app'            // Your main domain
+    'https://ummaticommunity.com',  // Your actual frontend domain
+    'https://www.ummaticommunity.com' // With www if you use it
 ];
 ```
 
@@ -130,9 +129,8 @@ MONGODB_URI=your_production_mongodb_uri
 ### CORS Origins
 ```javascript
 const allowedOrigins = [
-    'https://yourdomain.com',
-    'https://www.yourdomain.com',
-    'https://admin.yourdomain.com'
+    'https://ummaticommunity.com',
+    'https://www.ummaticommunity.com'
 ];
 ```
 

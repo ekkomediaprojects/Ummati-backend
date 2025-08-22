@@ -52,10 +52,8 @@ const allowedOrigins = [
     'http://localhost:3000',
     'http://localhost:3001',
     'http://localhost:5173', // Vite default
-    'https://yourfrontend.com', // Replace with your actual frontend domain
-    'https://ummati-frontend.vercel.app', // Add your Vercel domain if using
-    'https://ummati-admin.vercel.app', // Add your admin dashboard domain if different
-    'https://ummati.vercel.app' // Add your main domain if different
+    'https://ummaticommunity.com', // Your actual frontend domain
+    'https://www.ummaticommunity.com' // With www if you use it
 ];
 ```
 
@@ -158,7 +156,7 @@ All responses now include:
 import axios from 'axios';
 
 const api = axios.create({
-    baseURL: 'https://your-backend.com/api',
+    baseURL: 'https://api.ummaticommunity.com/api', // Update with your actual backend URL
     withCredentials: true,
     headers: {
         'Content-Type': 'application/json',
