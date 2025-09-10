@@ -15,9 +15,9 @@ const defaultMembershipTiers = [
     },
     {
         name: 'Monthly Membership',
-        price: process.env.MEMBERSHIP_PRICE || 20.00,
-        stripePriceId: process.env.STRIPE_PRICE_ID || 'price_1R3TZWJDsyGovB7M7iwulYZD',
-        stripeProductId: process.env.STRIPE_PRODUCT_ID || 'prod_RxOMrCf0xDI8Cx',
+        price: process.env.MEMBERSHIP_PRICE,
+        stripePriceId: process.env.STRIPE_PRICE_ID,
+        stripeProductId: process.env.STRIPE_PRODUCT_ID,
         benefits: [
             'Access to all community events',
             'Monthly newsletter',
