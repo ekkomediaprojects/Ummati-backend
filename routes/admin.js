@@ -479,9 +479,33 @@ router.post('/events',
 // Get all events with pagination and filtering
 router.get('/events', authenticateJWT, isAdmin, async (req, res) => {
     try {
-        const { page = 1, limit = 10 } = req.query;
-        const total = await Event.countDocuments();
-        const events = await Event.find()
+        const { 
+            page = 1, 
+            limit = 10, 
+            search = "", 
+            state, 
+            city, 
+            from, 
+            to
+        } = req.query;
+
+        const filter = {};
+
+        if (search) {
+            filter.$or = [
+                { title: { $regex: search, $options: "i" } },
+                { description: { $regex: search, $options: "i" } }
+            ];
+        }
+
+        if (state) filter.state = state;
+        if (city) filter.city = city;
+        if (from && to) {
+            filter.start = { $gte: new Date(from), $lte: new Date(to) };
+        }
+
+        const total = await Event.countDocuments(filter);
+        const events = await Event.find(filter)
             .sort({ start: -1 })
             .skip((page - 1) * limit)
             .limit(parseInt(limit));
@@ -504,6 +528,7 @@ router.get('/events', authenticateJWT, isAdmin, async (req, res) => {
         });
     }
 });
+
 
 // Get single event
 router.get('/events/:id', authenticateJWT, isAdmin, async (req, res) => {
