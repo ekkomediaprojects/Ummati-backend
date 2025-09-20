@@ -24,7 +24,7 @@ router.post('/register', async (req, res) => {
         // Check if email already exists
         const existingUser = await User.findOne({ email });
         if (existingUser) {
-            return res.status(409).json({ message: 'Email already in use' });
+            return res.status(409).json({ message: 'Email already exists. Please login or use a different email.' });
         }
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
@@ -387,7 +387,7 @@ router.post('/google-signup', async (req, res) => {
         // Check if email already exists
         const existingUser = await User.findOne({ email });
         if (existingUser) {
-            return res.status(409).json({ message: 'Email already in use' });
+            return res.status(409).json({ message: 'Email already exists. Please login or use a different email.' });
         }
 
         // Create user with Google info
