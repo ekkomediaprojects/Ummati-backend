@@ -501,7 +501,6 @@ router.get('/events', authenticateJWT, isAdmin, async (req, res) => {
         if (state) filter["venue.state"] = { $regex: `^${state}$`, $options: "i" }; 
         if (city) filter["venue.city"] = { $regex: city, $options: "i" };
 
-
         if (from) {
             const decodedFrom = decodeURIComponent(from);
             const decodedTo = decodeURIComponent(to);
