@@ -498,10 +498,21 @@ router.get('/events', authenticateJWT, isAdmin, async (req, res) => {
             ];
         }
 
-        if (state) filter.state = state;
-        if (city) filter.city = city;
-        if (from && to) {
-            filter.start = { $gte: new Date(from), $lte: new Date(to) };
+        if (state) filter["venue.state"] = { $regex: `^${state}$`, $options: "i" }; 
+        if (city) filter["venue.city"] = { $regex: city, $options: "i" };
+
+
+        if (from) {
+            const decodedFrom = decodeURIComponent(from);
+            const decodedTo = decodeURIComponent(to);
+
+            const fromDate = new Date(decodedFrom);
+            const toDate = new Date(decodedTo);
+
+            console.log("startDate" , fromDate)
+            if (!isNaN(fromDate) && !isNaN(toDate)) {
+                filter.start = { $gte: fromDate, $lte: toDate };
+            }
         }
 
         const total = await Event.countDocuments(filter);
