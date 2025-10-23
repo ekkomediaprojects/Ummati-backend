@@ -3,6 +3,8 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const path = require('path');
+
 //const helmet = require('helmet');
 const { initializeStripeServices } = require('./services/stripeMembershipService');
 const { cleanupExpiredQRCodes } = require('./services/qrCodeService');
@@ -31,7 +33,8 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/stripe/webhook', bodyParser.raw({ type: 'application/json' }));
 app.use(express.json()); // JSON parsing for all routes
 
-
+// Public access for images
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Use Routes
 app.use('/stripe', stripeRoutes); // Stripe routes first (needs raw body)
 app.use('/users', userRoutes);
