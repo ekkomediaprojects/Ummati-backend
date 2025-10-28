@@ -304,7 +304,16 @@ router.get('/profile', authenticateJWT, async (req, res) => {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        res.status(200).json({ user });
+        let tierId = null;
+        if (user.membershipTier) {
+        const memberTier = await MembershipTier.findById(user.membershipTier);
+        if (memberTier) tierId = memberTier.tierId;
+        }
+
+        const plainUser = user.toObject();
+        plainUser.membershipTier = tierId;
+
+        res.status(200).json({ user : plainUser});
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
     }

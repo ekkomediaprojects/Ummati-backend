@@ -6,6 +6,7 @@ const defaultMembershipTiers = [
         price: 0,
         stripePriceId: null,
         stripeProductId: null,
+        tierId: 'UCMT-F039B4',
         benefits: [
             'Access to public events',
             'Community newsletter',
@@ -18,6 +19,7 @@ const defaultMembershipTiers = [
         price: process.env.MEMBERSHIP_PRICE,
         stripePriceId: process.env.STRIPE_PRICE_ID,
         stripeProductId: process.env.STRIPE_PRODUCT_ID,
+        tierId: 'UCMT-M150DE',
         benefits: [
             'Access to all community events',
             'Monthly newsletter',
