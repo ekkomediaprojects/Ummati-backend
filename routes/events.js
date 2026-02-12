@@ -11,7 +11,8 @@ router.get("/", async (req, res) => {
 
         const upcomingEvents = events
             .filter(e => new Date(e.end) >= now)   // remove past events
-            .sort((a, b) => new Date(a.start) - new Date(b.start)); // sort by start
+            .sort((a, b) => new Date(b.start) - new Date(a.start));
+
 
         res.json(upcomingEvents);
     } catch (error) {
