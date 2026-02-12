@@ -3,51 +3,24 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose'); // Import mongoose
 
-
 router.get("/", async (req, res) => {
     try {
         const now = new Date();
 
-        const events = await Event.aggregate([
-            {
-                $addFields: {
-                    startDate: {
-                        $dateFromString: {
-                            dateString: "$start"
-                        }
-                    },
-                    endDate: {
-                        $dateFromString: {
-                            dateString: "$end"
-                        }
-                    }
-                }
-            },
-            {
-                $match: {
-                    endDate: { $gte: now }
-                }
-            },
-            {
-                $sort: {
-                    startDate: 1
-                }
-            },
-            {
-                $project: {
-                    startDate: 0,
-                    endDate: 0
-                }
-            }
-        ]);
+        const events = await Event.find();
 
-        res.json(events);
+        const upcomingEvents = events
+            .filter(e => new Date(e.end) >= now)   // remove past events
+            .sort((a, b) => new Date(a.start) - new Date(b.start)); // sort by start
+
+        res.json(upcomingEvents);
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
     }
 });
-
-
 
 router.post("/reorder", async (req, res) => {
   try {
