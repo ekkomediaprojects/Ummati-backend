@@ -5,17 +5,48 @@ const mongoose = require('mongoose'); // Import mongoose
 
 router.get("/", async (req, res) => {
     try {
-        const events = await Event.find(); // Fetch events from MongoDB
-        res.json(events); // Return events array directly for frontend compatibility
+        const now = new Date();
+
+        const events = await Event.aggregate([
+            {
+                $addFields: {
+                    startDate: {
+                        $dateFromString: {
+                            dateString: "$start"
+                        }
+                    },
+                    endDate: {
+                        $dateFromString: {
+                            dateString: "$end"
+                        }
+                    }
+                }
+            },
+            {
+                $match: {
+                    endDate: { $gte: now }
+                }
+            },
+            {
+                $sort: {
+                    startDate: 1
+                }
+            },
+            {
+                $project: {
+                    startDate: 0,
+                    endDate: 0
+                }
+            }
+        ]);
+
+        res.json(events);
     } catch (error) {
-        console.error("Error fetching events:", error);
-        res.status(500).json({
-            success: false,
-            message: "Server Error",
-            error: error.message
-        });
+        res.status(500).json({ success: false, message: error.message });
     }
 });
+
+
 
 router.post("/reorder", async (req, res) => {
   try {
